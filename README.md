@@ -38,7 +38,7 @@ Catálogo: [Open Food Facts](https://openfoodfacts.org), dados ODbL e imagens CC
 
 ## Experiência e movimento
 
-Paleta clara em creme, verde e tons de papel; títulos editoriais e ilustrações vetoriais de embalagens. Navegação principal: Lista, Estoque e Histórico. O botão Adicionar reúne os caminhos manual, scanner e cupom.
+Paleta clara em creme, verde e tons de papel; títulos editoriais e ilustrações vetoriais de embalagens. Navegação principal: Hoje, Lista e Estoque. Histórico e Ajustes ficam no menu Mais. O botão Adicionar reúne os caminhos manual, scanner e cupom.
 
 Painéis se expandem do elemento tocado, com interpolação da superfície, cantos e conteúdo. Fechar reverte o trajeto. Níveis de consumo animam a superfície do preenchimento. O sistema respeita “Reduzir Movimento”. Estados vazios, falta de internet e permissões negadas têm caminhos manuais. Testes de interface incluem iPhone compacto com texto ampliado.
 
@@ -82,3 +82,25 @@ O estoque mostra um aviso discreto e o filtro **Validades** para produtos vencid
 O formato local/backup passou à versão 3. Arquivos das versões 1 e 2 continuam aceitos; suas embalagens entram sem validade anotada. Lotes guardam quantidades fechadas e datas; cada aberto mantém uma referência opcional ao seu lote. A validação impede alocar mais unidades do que o saldo ou manter referências inexistentes.
 
 Prévias: [Avisos no estoque](docs/preview/07-avisos-validade.png) e [Lotes e validades](docs/preview/08-lotes-validade.png).
+
+## Versão 0.4 — Hoje, movimento e leitura rápida
+
+O novo design foi implementado em Flutter a partir do HTML de referência fornecido pelo usuário. O arquivo `support.js` é um runtime do protótipo web e não é executado ou incluído no aplicativo. O armazenamento e o formato de backup permanecem na versão 3.
+
+- **Hoje:** data real, pendências de reposição e validade, próxima compra e acesso rápido às embalagens abertas. Adicionar uma reposição recolhe o cartão com animação; conferir um vencimento abre o produto e mantém o aviso.
+- **Lista:** prioridades em grupos, uma marcação por item, edição pelo nome, estimativa de orçamento e carrinho recolhível. O resumo ocupa espaço próprio no layout e pode ser rolado quando expandido; não cobre os itens. Guardar uma compra mantém a confirmação e a gravação atômica.
+- **Estoque:** cartões por ambiente com preenchimento visual e região estável para fração, nome e informações. Busca, filtros, lotes, fotos e cadastro continuam disponíveis. Em telas estreitas ou com texto maior, a grade passa para uma coluna.
+- **Abertos agora:** tocar abre o ajuste rápido, sem consumir automaticamente. Os níveis continuam aproximados; a finalização permite desfazer preservando a validade do lote.
+- **Adicionar:** atalhos reais para lista, estoque, código de barras e cupom se expandem do botão +. O menu Mais reúne Histórico e Ajustes.
+
+A especificação de movimento está em [DESIGN.md](DESIGN.md). Prévias: [Hoje](docs/preview/09-hoje.png), [Estoque](docs/preview/03-estoque.png), [Carrinho](docs/preview/10-carrinho.png), [Atalhos](docs/preview/11-atalhos.png) e [Ajuste rápido](docs/preview/12-ajuste-rapido.png).
+
+Captura opcional de quadros reais das transições:
+
+```sh
+flutter test --dart-define=CAPTURE_MOTION=true test/motion_preview_test.dart
+```
+
+Para codificar os quadros em GIF, use Python com Pillow: `python tool/render_motion.py`. [Ver a prévia animada](docs/preview/13-motion.gif).
+
+A gravação é uma sequência de quadros renderizados pelo Flutter em teste, não uma medição de desempenho em iPhone físico.

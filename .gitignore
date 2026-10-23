@@ -43,3 +43,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Regenerable motion-test frames (the final GIF lives in docs/preview).
+/docs/motion/

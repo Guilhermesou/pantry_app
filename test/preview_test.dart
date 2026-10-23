@@ -11,6 +11,7 @@ import 'package:despensa/services.dart';
 import 'package:despensa/screens/capture.dart';
 import 'package:despensa/screens/settings.dart';
 import 'package:despensa/screens/lots.dart';
+import 'package:despensa/screens/quick_level.dart';
 import 'store_test.dart' show MemoryRepository;
 
 // Optional visual QA capture using system fonts, without bundling proprietary fonts.
@@ -57,6 +58,8 @@ void main() {
         final render =
             boundary.currentContext!.findRenderObject()!
                 as RenderRepaintBoundary;
+        render.markNeedsPaint();
+        await tester.pump();
         await tester.runAsync(() async {
           final image = await render.toImage(pixelRatio: 2);
           final data = await image.toByteData(format: ui.ImageByteFormat.png);
@@ -70,9 +73,40 @@ void main() {
       }
 
       await capture('01-boas-vindas');
-      await store.replace(AppData.example());
+      final designData = AppData.example();
+      designData.list.removeWhere((item) => item.productId != null);
+      designData.products.add(
+        Product(
+          id: 'yogurt',
+          name: 'Iogurte natural',
+          pack: '170 g',
+          location: 'Geladeira',
+          closed: 2,
+          lastPrice: 3.79,
+          lots: [
+            StockLot(
+              id: 'yogurt-lot',
+              closed: 2,
+              expiry: calendarDate(DateTime.now()).add(const Duration(days: 1)),
+            ),
+          ],
+        ),
+      );
+      await store.replace(designData);
+      await tester.pumpAndSettle();
+      await capture('09-hoje');
+      await store.addSuggestion('milk');
+      await store.addSuggestion('coffee');
+      await tester.tap(find.text('Lista'));
       await tester.pumpAndSettle();
       await capture('02-lista');
+      await store.change(
+        (d) => d.list.firstWhere((e) => e.productId == 'milk').checked = true,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.bySemanticsLabel(RegExp('Expandir carrinho')));
+      await tester.pumpAndSettle();
+      await capture('10-carrinho');
       await tester.tap(find.text('Estoque'));
       await tester.pumpAndSettle();
       await capture('03-estoque');
@@ -132,6 +166,20 @@ void main() {
       );
       await tester.pumpAndSettle();
       await capture('08-lotes-validade');
+      navigator.pop();
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Adicionar'));
+      await tester.pumpAndSettle();
+      await capture('11-atalhos');
+      await tester.tap(find.byTooltip('Fechar atalhos'));
+      await tester.pumpAndSettle();
+      navigator.push(
+        MaterialPageRoute<void>(
+          builder: (_) => QuickLevelPage(store: store, id: 'rice', index: 0),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await capture('12-ajuste-rapido');
     },
     skip: !const bool.fromEnvironment('CAPTURE_UI'),
   );

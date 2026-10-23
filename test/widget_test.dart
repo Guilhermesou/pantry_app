@@ -33,7 +33,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(store.data.onboarded, true);
     expect(store.data.products, isEmpty);
-    expect(find.text('Uma lista leve.'), findsOneWidget);
+    expect(find.text('Sua casa,\nno seu ritmo.'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
   testWidgets(
@@ -53,7 +53,7 @@ void main() {
       expect(store.data.product('rice')!.opened.length, 2);
       await tester.drag(find.byType(ListView).last, const Offset(0, -500));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('¼').first);
+      await tester.tap(find.widgetWithText(ChoiceChip, '¼').first);
       await tester.pumpAndSettle();
       expect(store.data.product('rice')!.opened.first, .25);
       expect(tester.takeException(), isNull);
@@ -79,6 +79,8 @@ void main() {
     await tester.tap(find.text('Estoque'));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
+    await tester.tap(find.byTooltip('Mais'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Histórico'));
     await tester.pumpAndSettle();
     expect(find.text('Tudo começa agora.'), findsOneWidget);

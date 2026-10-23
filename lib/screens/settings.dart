@@ -225,7 +225,7 @@ class _SettingsPageState extends State<SettingsPage> {
         const Eyebrow('SOBRE ESTA VERSÃO'),
         const SizedBox(height: 12),
         const Text(
-          'Despensa · 0.3.0\n\nConsulta de alimentos: Open Food Facts (ODbL). As fotos do catálogo têm licença CC BY-SA. Cadastros externos são sugestões e precisam de conferência.\n\nA leitura de cupons usa Apple Vision no aparelho e exige revisão. A proteção contra repetição reconhece a mesma chave fiscal, quando legível, ou o mesmo texto normalizado. Leituras diferentes da mesma compra ainda podem exigir sua atenção.',
+          'Despensa · 0.4.0\n\nConsulta de alimentos: Open Food Facts (ODbL). As fotos do catálogo têm licença CC BY-SA. Cadastros externos são sugestões e precisam de conferência.\n\nA leitura de cupons usa Apple Vision no aparelho e exige revisão. A proteção contra repetição reconhece a mesma chave fiscal, quando legível, ou o mesmo texto normalizado. Leituras diferentes da mesma compra ainda podem exigir sua atenção.',
           style: TextStyle(fontSize: 12, color: muted),
         ),
         const SizedBox(height: 30),

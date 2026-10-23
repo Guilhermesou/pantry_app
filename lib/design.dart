@@ -345,10 +345,8 @@ Future<T?> fluidPage<T>(BuildContext context, Widget page, {Rect? origin}) {
                   ),
                   Positioned.fromRect(
                     rect: rect,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(
-                        lerpDouble(32, 0, t)!,
-                      ),
+                    child: ClipPath(
+                      clipper: FluidRevealClipper(t),
                       child: OverflowBox(
                         alignment: Alignment.topCenter,
                         minWidth: size.width,
@@ -368,6 +366,30 @@ Future<T?> fluidPage<T>(BuildContext context, Widget page, {Rect? origin}) {
           ),
     ),
   );
+}
+
+/// An asymmetric droplet that resolves into the page's final rectangular surface.
+class FluidRevealClipper extends CustomClipper<Path> {
+  FluidRevealClipper(this.progress);
+  final double progress;
+  @override
+  Path getClip(Size size) {
+    final bend = math.sin(progress * math.pi);
+    final radius = math.min(size.width, size.height) * .5 * (1 - progress);
+    return Path()..addRRect(
+      RRect.fromRectAndCorners(
+        Offset.zero & size,
+        topLeft: Radius.circular(radius * (1 + bend * .28)),
+        topRight: Radius.circular(radius * (1 - bend * .20)),
+        bottomLeft: Radius.circular(radius * (1 - bend * .12)),
+        bottomRight: Radius.circular(radius * (1 + bend * .22)),
+      ),
+    );
+  }
+
+  @override
+  bool shouldReclip(covariant FluidRevealClipper old) =>
+      old.progress != progress;
 }
 
 class PanelScaffold extends StatelessWidget {

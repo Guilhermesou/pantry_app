@@ -24,12 +24,12 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>A câmera lê códigos de barras e fotografa produtos e cupons para sua despensa.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Escolha fotos de produtos e cupons para organizar sua despensa.</string>
-	<key>LSRequiresIPhoneOS</key>
-	<true/>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

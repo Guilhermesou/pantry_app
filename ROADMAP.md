@@ -43,6 +43,16 @@
 - Backup com lotes e migração das versões anteriores sem inventar datas.
 - Avisos dentro do app; nenhuma notificação ou compra gerada automaticamente.
 
+## Implementado na versão 0.4
+
+- Hoje como entrada do app: reposição voluntária, vencimentos e próxima compra.
+- Estoque visual por ambiente, preservando legibilidade e os controles de lotes existentes.
+- Carrinho expansível e uma marcação por item; histórico no menu secundário.
+- Atalhos animados no + para os fluxos reais de cadastro, scanner e cupom.
+- Ajuste rápido de abertos, sem consumo automático ao tocar.
+- Pressão de toque, resposta tátil, contadores animados, superfícies fluidas e preenchimento finito.
+- Reduzir Movimento aplicado aos componentes de motion; texto ampliado e grade responsiva.
+
 ## Validação de uso real
 
 - Usar na compra principal e em uma reposição pequena, medindo passos necessários.
