@@ -139,25 +139,6 @@ class _PantryHomeState extends State<PantryHome>
   }
 
   /// A tap on an opened package lowers it by a quarter; the last quarter finishes it.
-  Future<void> lowerLevel(Product p, int index) async {
-    final level = p.opened[index], lotId = p.openedLotIds[index];
-    final next = ((level * 4).round() - 1) / 4;
-    HapticFeedback.selectionClick();
-    if (next > 0) {
-      await perform(context, () => store.setLevel(p.id, index, next));
-      return;
-    }
-    final ok = await perform(context, () => store.setLevel(p.id, index, 0));
-    if (ok && mounted) {
-      showToast(
-        context,
-        '${p.name}: embalagem finalizada.',
-        undo: () =>
-            perform(context, () => store.restoreOpened(p.id, level, lotId)),
-      );
-    }
-  }
-
   Future<void> toggleItem(ShoppingItem item) async {
     HapticFeedback.selectionClick();
     await perform(
@@ -223,7 +204,8 @@ class _PantryHomeState extends State<PantryHome>
                           onList: () => selectTab(1),
                           onAdd: () => openSheet(ProductEditor(store: store)),
                           onProduct: openProduct,
-                          onLevelDown: lowerLevel,
+                          onLevelDown: (p, i) =>
+                              lowerOpenedLevel(context, store, p, i),
                           onLevelDetail: (p, i) =>
                               showQuickLevel(context, store, p.id, i),
                           onSuggestion: addSuggestion,

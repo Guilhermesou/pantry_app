@@ -8,41 +8,140 @@ import 'package:path_provider/path_provider.dart';
 import 'models.dart';
 
 class CatalogService {
-  CatalogService({http.Client? client}) : _client = client ?? http.Client();
+  CatalogService({http.Client? client, this.cosmosToken = ''})
+    : _client = client ?? http.Client();
   final http.Client _client;
+  final String cosmosToken;
+  static const _agent = 'DespensaPersonal/1.0 (private household inventory)';
+  static const _openFactsNames = {
+    'beauty': 'Open Beauty Facts',
+    'petfood': 'Open Pet Food Facts',
+    'product': 'Open Products Facts',
+  };
+
+  /// Asks every source at once and keeps the answer of the most trusted one.
   Future<Product?> lookup(String barcode) async {
     if (!RegExp(r'^\d{8,14}$').hasMatch(barcode)) {
       throw const FormatException('Digite um código de 8 a 14 números.');
     }
-    final response = await _client
-        .get(
-          Uri.https('world.openfoodfacts.org', '/api/v3/product/$barcode.json', {
-            'fields':
-                'product_name,product_name_pt,brands,quantity,image_front_small_url',
-          }),
-          headers: {
-            'User-Agent': 'DespensaPersonal/1.0 (private household inventory)',
-          },
-        )
-        .timeout(const Duration(seconds: 12));
-    if (response.statusCode == 404) return null;
+    var failures = 0;
+    final answers =
+        [
+              _openFacts(barcode),
+              if (cosmosToken.isNotEmpty) _cosmos(barcode),
+              _upcItemDb(barcode),
+            ]
+            .map(
+              (answer) => answer
+                  .timeout(const Duration(seconds: 12))
+                  .then<Product?>(
+                    (product) => product,
+                    onError: (_) {
+                      failures++;
+                      return null;
+                    },
+                  ),
+            )
+            .toList();
+    for (final answer in answers) {
+      final product = await answer;
+      if (product != null) return product;
+    }
+    if (failures == answers.length) {
+      throw const HttpException('Catálogo indisponível agora.');
+    }
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> _get(
+    Uri uri, {
+    Map<String, String> headers = const {'User-Agent': _agent},
+  }) async {
+    final response = await _client.get(uri, headers: headers);
+    if (response.statusCode == 404 || response.statusCode == 400) return null;
     if (response.statusCode != 200) {
       throw const HttpException('Catálogo indisponível agora.');
     }
-    final body = jsonDecode(response.body) as Map<String, dynamic>;
-    final product = body['product'] as Map<String, dynamic>?;
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  // product_type=all redirects to Open Beauty, Pet Food or Products Facts.
+  Future<Product?> _openFacts(String barcode) async {
+    final body = await _get(
+      Uri.https('world.openfoodfacts.org', '/api/v3/product/$barcode.json', {
+        'product_type': 'all',
+        'fields':
+            'product_name,product_name_pt,brands,quantity,image_front_small_url,product_type',
+      }),
+    );
+    final product = body?['product'] as Map<String, dynamic>?;
     if (product == null) return null;
-    final name = (product['product_name_pt'] ?? product['product_name'] ?? '')
-        .toString();
-    if (name.trim().isEmpty) return null;
+    return _product(
+      barcode,
+      product['product_name_pt'] ?? product['product_name'],
+      brand: product['brands'],
+      pack: product['quantity'],
+      photo: product['image_front_small_url'],
+      source: _openFactsNames[product['product_type']] ?? 'Open Food Facts',
+    );
+  }
+
+  Future<Product?> _cosmos(String barcode) async {
+    final body = await _get(
+      Uri.https('api.cosmos.bluesoft.com.br', '/gtins/$barcode.json'),
+      headers: {
+        'X-Cosmos-Token': cosmosToken,
+        'User-Agent': 'Cosmos-API-Request',
+      },
+    );
+    if (body == null) return null;
+    return _product(
+      barcode,
+      body['description'],
+      brand: (body['brand'] as Map?)?['name'],
+      photo: body['thumbnail'],
+      source: 'Cosmos Bluesoft',
+    );
+  }
+
+  Future<Product?> _upcItemDb(String barcode) async {
+    final body = await _get(
+      Uri.https('api.upcitemdb.com', '/prod/trial/lookup', {'upc': barcode}),
+    );
+    final items = body?['items'] as List?;
+    if (items == null || items.isEmpty) return null;
+    final item = items.first as Map<String, dynamic>;
+    final images = item['images'] as List? ?? [];
+    return _product(
+      barcode,
+      item['title'],
+      brand: item['brand'],
+      pack: item['size'],
+      photo: images.isEmpty ? null : images.first,
+      source: 'UPCitemdb',
+    );
+  }
+
+  static Product? _product(
+    String barcode,
+    Object? name, {
+    Object? brand,
+    Object? pack,
+    Object? photo,
+    required String source,
+  }) {
+    final text = (name ?? '').toString().trim();
+    if (text.isEmpty) return null;
+    final image = (photo ?? '').toString();
     return Product(
       id: newId(),
-      name: name,
+      name: text,
       barcode: barcode,
-      brand: product['brands'] ?? '',
-      pack: product['quantity'] ?? '',
-      remotePhoto: product['image_front_small_url'] ?? '',
-      source: 'Open Food Facts',
+      brand: (brand ?? '').toString().trim(),
+      pack: (pack ?? '').toString().trim(),
+      // iOS blocks plain http images.
+      remotePhoto: image.startsWith('https://') ? image : '',
+      source: source,
     );
   }
 

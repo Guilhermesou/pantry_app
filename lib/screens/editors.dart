@@ -387,8 +387,28 @@ class _ProductEditorState extends State<ProductEditor> {
   );
   final form = GlobalKey<FormState>();
   bool saving = false, photoBusy = false;
-  DateTime? initialExpiry;
+
+  /// Dates for part of the first count; packages left over stay undated.
+  final initialLots = <StockLot>[];
+  var lotSerial = 0;
+  int get datedClosed => initialLots.fold(0, (sum, lot) => sum + lot.closed);
   bool get existing => widget.store.data.product(p.id) != null;
+  Future<void> addInitialLot() async {
+    final expiry = await pickExpiry(context, null);
+    if (expiry == null || !mounted) return;
+    setState(() {
+      final remaining = p.closed - datedClosed;
+      if (remaining == 0) p.closed++;
+      initialLots.add(
+        StockLot(
+          id: 'initial-${p.id}-${lotSerial++}',
+          closed: remaining == 0 ? 1 : remaining,
+          expiry: expiry,
+        ),
+      );
+    });
+  }
+
   @override
   void dispose() {
     for (final c in [name, brand, pack, code, minimum, price]) {
@@ -436,15 +456,7 @@ class _ProductEditorState extends State<ProductEditor> {
                 () => widget.store.change((d) {
                   final index = d.products.indexWhere((e) => e.id == p.id);
                   if (index < 0) {
-                    p.lots = initialExpiry != null && p.closed > 0
-                        ? [
-                            StockLot(
-                              id: 'initial-${p.id}',
-                              closed: p.closed,
-                              expiry: initialExpiry!,
-                            ),
-                          ]
-                        : [];
+                    p.lots = List.of(initialLots);
                     d.products.add(p);
                   } else {
                     d.products[index] = p;
@@ -566,14 +578,49 @@ class _ProductEditorState extends State<ProductEditor> {
           Counter(
             label: 'Embalagens fechadas',
             value: p.closed,
-            min: p.closed - p.undatedClosed,
+            min: existing ? p.closed - p.undatedClosed : datedClosed,
             onChanged: (n) => setState(() => p.closed = n),
           ),
           const SizedBox(height: 10),
           if (!existing) ...[
-            ExpiryField(
-              value: initialExpiry,
-              onChanged: (value) => setState(() => initialExpiry = value),
+            for (final lot in initialLots) ...[
+              ExpiryField(
+                value: lot.expiry,
+                onChanged: (value) => setState(() {
+                  if (value == null) {
+                    initialLots.remove(lot);
+                  } else {
+                    lot.expiry = value;
+                  }
+                }),
+              ),
+              const SizedBox(height: 4),
+              Counter(
+                label: 'Com esta validade',
+                value: lot.closed,
+                min: 1,
+                max: p.closed - datedClosed + lot.closed,
+                onChanged: (n) => setState(() => lot.closed = n),
+              ),
+              const SizedBox(height: 14),
+            ],
+            AppButton(
+              label: initialLots.isEmpty
+                  ? 'Anotar validade (opcional)'
+                  : 'Outra validade',
+              icon: Symbols.event,
+              tone: ButtonTone.soft,
+              height: 40,
+              onPressed: addInitialLot,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              initialLots.isEmpty
+                  ? 'Embalagens com datas diferentes? Anote uma validade para cada grupo.'
+                  : p.closed > datedClosed
+                  ? '${p.closed - datedClosed} sem validade anotada.'
+                  : 'Todas as fechadas têm validade.',
+              style: const TextStyle(fontSize: 12, color: muted),
             ),
             const SizedBox(height: 10),
           ],
@@ -586,7 +633,7 @@ class _ProductEditorState extends State<ProductEditor> {
               ),
             ),
           const Text(
-            'Para cadastrar uma embalagem já aberta, salve e toque em “Abrir embalagem”. Depois ajuste o nível.',
+            'Tem uma embalagem já aberta? Depois de salvar, registre-a no produto para indicar o nível e a validade.',
             style: TextStyle(fontSize: 12, color: muted),
           ),
           const SizedBox(height: 18),
@@ -616,7 +663,7 @@ class _ProductEditorState extends State<ProductEditor> {
             Padding(
               padding: const EdgeInsets.only(top: 18),
               child: Text(
-                'Cadastro sugerido por ${p.source}. Confira os dados. Base ODbL; imagens CC BY-SA. openfoodfacts.org',
+                'Cadastro sugerido por ${p.source}. Confira os dados.${p.source.startsWith('Open') ? ' Base ODbL; imagens CC BY-SA.' : ''}',
                 style: const TextStyle(fontSize: 11, color: faint),
               ),
             ),

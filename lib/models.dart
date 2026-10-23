@@ -276,6 +276,7 @@ class AppData {
     this.budget = 0,
     this.onboarded = false,
     this.demo = false,
+    this.cosmosToken = '',
   }) : products = products ?? [],
        list = list ?? [],
        events = events ?? [],
@@ -288,6 +289,9 @@ class AppData {
   Map<String, String> receiptAliases;
   double budget;
   bool onboarded, demo;
+
+  /// Personal Cosmos Bluesoft key. Stays on this device; exports drop it.
+  String cosmosToken;
   double get planned => list
       .where((e) => e.priority != Priority.later)
       .fold(0, (s, e) => s + e.total);
@@ -318,6 +322,7 @@ class AppData {
     'budget': budget,
     'onboarded': onboarded,
     'demo': demo,
+    'cosmosToken': cosmosToken,
   };
   factory AppData.fromJson(Map<String, dynamic> j) {
     if (j['version'] != 1 && j['version'] != 2 && j['version'] != 3) {
@@ -336,6 +341,7 @@ class AppData {
       budget: (j['budget'] as num).toDouble(),
       onboarded: j['onboarded'] == true,
       demo: j['demo'] == true,
+      cosmosToken: j['cosmosToken'] as String? ?? '',
     );
     data.validate();
     return data;

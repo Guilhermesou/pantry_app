@@ -10,6 +10,7 @@ import '../symbols.dart';
 import '../toast.dart';
 import 'editors.dart';
 import 'lots.dart';
+import 'quick_level.dart' show lowerOpenedLevel;
 
 class ProductDetail extends StatelessWidget {
   const ProductDetail({super.key, required this.store, required this.id});
@@ -56,21 +57,41 @@ class ProductDetail extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 3),
-                  const Text(
-                    'Abriu uma? Vamos acompanhar sem medir.',
-                    style: TextStyle(fontSize: 13, color: muted),
+                  Text(
+                    p.closed == 0
+                        ? 'Já tem uma aberta em casa? Registre para acompanhar o nível e a validade.'
+                        : 'Abriu uma? Vamos acompanhar sem medir.',
+                    style: const TextStyle(fontSize: 13, color: muted),
                   ),
                   const SizedBox(height: 14),
+                  if (p.closed > 0) ...[
+                    AppButton(
+                      label: 'Abrir embalagem',
+                      icon: Symbols.package2,
+                      expand: true,
+                      glow: true,
+                      onPressed: store.busy
+                          ? null
+                          : () {
+                              HapticFeedback.lightImpact();
+                              choosePackage(context, store, id);
+                            },
+                    ),
+                    const SizedBox(height: 8),
+                  ],
                   AppButton(
-                    label: 'Abrir embalagem',
-                    icon: Symbols.package2,
+                    label: p.closed == 0
+                        ? 'Registrar embalagem aberta'
+                        : 'Já tenho outra aberta',
+                    icon: p.closed == 0 ? Symbols.package2 : null,
+                    tone: p.closed == 0 ? ButtonTone.solid : ButtonTone.flat,
+                    height: p.closed == 0 ? 48 : 36,
                     expand: true,
-                    glow: true,
-                    onPressed: p.closed == 0 || store.busy
+                    onPressed: store.busy
                         ? null
                         : () {
                             HapticFeedback.lightImpact();
-                            choosePackage(context, store, id);
+                            perform(context, () => store.addOpened(id));
                           },
                   ),
                 ],
@@ -197,7 +218,21 @@ class _OpenedPackage extends StatelessWidget {
         children: [
           Row(
             children: [
-              PackageIllustration(product: p, level: level, width: 56),
+              TouchSurface(
+                onTap: store.busy
+                    ? null
+                    : () => lowerOpenedLevel(context, store, p, i),
+                label:
+                    '${p.name}, ${levelNames[(level * 4).round()]}. Toque para baixar um quarto.',
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: PackageIllustration(
+                    product: p,
+                    level: level,
+                    width: 64,
+                  ),
+                ),
+              ),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
@@ -217,7 +252,7 @@ class _OpenedPackage extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'aprox. ${(level * 100).round()}%',
+                      'aprox. ${(level * 100).round()}% · toque na embalagem para baixar ¼',
                       style: const TextStyle(fontSize: 12, color: faint),
                     ),
                   ],

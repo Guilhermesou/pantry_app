@@ -1,11 +1,25 @@
 import 'package:flutter/material.dart';
 import '../design.dart';
+import '../illustration.dart';
 import '../main.dart';
 import '../models.dart';
 import '../motion.dart';
 import '../store.dart';
 import '../symbols.dart';
 import 'editors.dart' show Counter;
+
+Future<DateTime?> pickExpiry(BuildContext context, DateTime? initial) async {
+  final selected = await showDatePicker(
+    context: context,
+    initialDate: initial ?? DateTime.now(),
+    firstDate: DateTime(1900),
+    lastDate: DateTime(2200, 12, 31),
+    helpText: 'Validade da embalagem',
+    cancelText: 'Cancelar',
+    confirmText: 'Anotar',
+  );
+  return selected == null ? null : calendarDate(selected);
+}
 
 class ExpiryField extends StatelessWidget {
   const ExpiryField({
@@ -34,17 +48,9 @@ class ExpiryField extends StatelessWidget {
             onPressed: !enabled
                 ? null
                 : () async {
-                    final selected = await showDatePicker(
-                      context: context,
-                      initialDate: value ?? DateTime.now(),
-                      firstDate: DateTime(1900),
-                      lastDate: DateTime(2200, 12, 31),
-                      helpText: 'Validade da embalagem',
-                      cancelText: 'Cancelar',
-                      confirmText: 'Anotar',
-                    );
+                    final selected = await pickExpiry(context, value);
                     if (selected != null && context.mounted) {
-                      onChanged(calendarDate(selected));
+                      onChanged(selected);
                     }
                   },
             child: Text(
@@ -158,10 +164,23 @@ class LotsPage extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 50),
           children: [
             const Text(
-              'Validades são opcionais. Anotar uma data aqui organiza o saldo existente; não adiciona outra compra.',
+              'Validades são opcionais. Cada lote guarda quantas embalagens têm a mesma data. Nada aqui registra uma compra.',
               style: TextStyle(color: muted, fontSize: 13),
             ),
             const SizedBox(height: 18),
+            AppButton(
+              label: 'Adicionar embalagens com validade',
+              icon: Symbols.add,
+              tone: ButtonTone.soft,
+              expand: true,
+              onPressed: store.busy
+                  ? null
+                  : () => showSheet(
+                      context,
+                      LotEditor(store: store, id: id, addStock: true),
+                    ),
+            ),
+            const SizedBox(height: 12),
             if (p.undatedClosed > 0)
               Surface(
                 child: Column(
@@ -195,11 +214,13 @@ class LotsPage extends StatelessWidget {
                   ],
                 ),
               ),
-            if (p.activeLots.isEmpty && p.undatedClosed == 0)
+            if (p.activeLots.isEmpty &&
+                p.undatedClosed == 0 &&
+                p.opened.isEmpty)
               const EmptyState(
                 title: 'Sem lotes com data.',
                 message:
-                    'Nas embalagens abertas, anote a validade\npelo controle de nível do produto.',
+                    'Tem embalagens com datas diferentes?\nAdicione um lote para cada validade.',
               ),
             for (final lot in p.activeLots)
               Padding(
@@ -266,6 +287,49 @@ class LotsPage extends StatelessWidget {
                   ),
                 ),
               ),
+            if (p.opened.isNotEmpty)
+              const Padding(
+                padding: EdgeInsets.fromLTRB(4, 24, 4, 0),
+                child: SectionLabel('Abertas'),
+              ),
+            for (var i = 0; i < p.opened.length; i++)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Surface(
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          PackageIllustration(
+                            product: p,
+                            level: p.opened[i],
+                            width: 40,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Embalagem aberta ${i + 1} · ${levelNames[(p.opened[i] * 4).round()]}',
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      ExpiryField(
+                        value: p.lot(p.openedLotIds[i])?.expiry,
+                        enabled: !store.busy,
+                        onChanged: (value) => perform(
+                          context,
+                          () => store.assignOpenedExpiry(id, i, value),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             const SizedBox(height: 22),
             const Text(
               'Os avisos aparecem no app. Embalagens vencidas continuam no saldo até você registrar o consumo, o descarte ou uma correção.',
@@ -284,10 +348,14 @@ class LotEditor extends StatefulWidget {
     required this.store,
     required this.id,
     this.lotId,
+    this.addStock = false,
   });
   final PantryStore store;
   final String id;
   final String? lotId;
+
+  /// Adds uncounted packages to the balance instead of dating existing ones.
+  final bool addStock;
   @override
   State<LotEditor> createState() => _LotEditorState();
 }
@@ -295,11 +363,64 @@ class LotEditor extends StatefulWidget {
 class _LotEditorState extends State<LotEditor> {
   Product get product => widget.store.data.product(widget.id)!;
   late final StockLot? lot = product.lot(widget.lotId);
-  late int quantity = lot?.closed ?? product.undatedClosed;
+  late int quantity = widget.addStock
+      ? 1
+      : lot?.closed ?? product.undatedClosed;
   late DateTime? expiry = lot?.expiry;
   bool saving = false;
   @override
-  Widget build(BuildContext context) => SheetScaffold(
+  Widget build(BuildContext context) =>
+      widget.addStock ? _addStock(context) : _assign(context);
+
+  Widget _addStock(BuildContext context) => SheetScaffold(
+    title: 'Outro lote, outra data.',
+    subtitle: product.name,
+    footer: FilledButton(
+      onPressed: saving || expiry == null
+          ? null
+          : () async {
+              setState(() => saving = true);
+              final ok = await perform(
+                context,
+                () => widget.store.addLot(widget.id, quantity, expiry!),
+              );
+              if (context.mounted) {
+                if (ok) {
+                  Navigator.pop(context);
+                } else {
+                  setState(() => saving = false);
+                }
+              }
+            },
+      child: const Text('Adicionar ao estoque'),
+    ),
+    child: ListView(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+      children: [
+        Counter(
+          label: 'Embalagens fechadas',
+          value: quantity,
+          min: 1,
+          onChanged: saving
+              ? null
+              : (value) => setState(() => quantity = value),
+        ),
+        const SizedBox(height: 16),
+        ExpiryField(
+          value: expiry,
+          enabled: !saving,
+          onChanged: (value) => setState(() => expiry = value),
+        ),
+        const SizedBox(height: 18),
+        const Text(
+          'Use para embalagens que já estão em casa e ainda não foram contadas. Elas somam ao saldo, sem preço e sem entrar no histórico de compras. Para datar embalagens já contadas, use “Anotar validade”.',
+          style: TextStyle(color: muted, fontSize: 12),
+        ),
+      ],
+    ),
+  );
+
+  Widget _assign(BuildContext context) => SheetScaffold(
     title: 'Anote no seu ritmo.',
     subtitle: product.name,
     footer: FilledButton(

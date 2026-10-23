@@ -30,7 +30,7 @@ class _SettingsPageState extends State<SettingsPage> {
     setState(() => busy = true);
     try {
       final snapshot = widget.store.data.copy();
-      final payload = snapshot.toJson();
+      final payload = snapshot.toJson()..remove('cosmosToken');
       final photos = <String, String>{};
       for (final p in snapshot.products) {
         if (p.photo.isNotEmpty && await File(p.photo).exists()) {
@@ -169,6 +169,31 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             const Padding(
               padding: EdgeInsets.fromLTRB(4, 24, 4, 8),
+              child: SectionLabel('Código de barras'),
+            ),
+            GroupedList(
+              shadow: shadowSmall,
+              children: [
+                ListRow(
+                  title: 'Catálogo Cosmos',
+                  value: data.cosmosToken.isEmpty ? 'Opcional' : 'Ativo',
+                  chevron: true,
+                  onTap: () => showSheet(
+                    context,
+                    CosmosTokenEditor(store: widget.store),
+                  ),
+                ),
+              ],
+            ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(4, 10, 4, 0),
+              child: Text(
+                'A busca consulta Open Food Facts (alimentos, higiene, pet e outros) e UPCitemdb. Com um token do Cosmos, inclui também a base brasileira da Bluesoft.',
+                style: TextStyle(fontSize: 12, color: faint),
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(4, 24, 4, 8),
               child: SectionLabel('Seus dados'),
             ),
             GroupedList(
@@ -242,7 +267,7 @@ class _SettingsPageState extends State<SettingsPage> {
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 4),
               child: Text(
-                'Despensa · 0.4.0\n\nAs transições acompanham a opção “Reduzir Movimento” dos Ajustes de Acessibilidade do iPhone.\n\nConsulta de alimentos: Open Food Facts (ODbL). As fotos do catálogo têm licença CC BY-SA. Cadastros externos são sugestões e precisam de conferência.\n\nA leitura de cupons usa Apple Vision no aparelho e exige revisão. A proteção contra repetição reconhece a mesma chave fiscal, quando legível, ou o mesmo texto normalizado. Leituras diferentes da mesma compra ainda podem exigir sua atenção.\n\nTipografia Inter (SIL OFL) e ícones Material Symbols (Apache 2.0).',
+                'Despensa · 0.4.0\n\nAs transições acompanham a opção “Reduzir Movimento” dos Ajustes de Acessibilidade do iPhone.\n\nConsulta de produtos: Open Food Facts, Open Beauty Facts, Open Pet Food Facts e Open Products Facts (ODbL, fotos CC BY-SA), UPCitemdb e, com seu token, Cosmos Bluesoft. Cadastros externos são sugestões e precisam de conferência.\n\nA leitura de cupons usa Apple Vision no aparelho e exige revisão. A proteção contra repetição reconhece a mesma chave fiscal, quando legível, ou o mesmo texto normalizado. Leituras diferentes da mesma compra ainda podem exigir sua atenção.\n\nTipografia Inter (SIL OFL) e ícones Material Symbols (Apache 2.0).',
                 style: TextStyle(fontSize: 12, color: faint, height: 1.5),
               ),
             ),
@@ -250,6 +275,72 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
       );
     },
+  );
+}
+
+class CosmosTokenEditor extends StatefulWidget {
+  const CosmosTokenEditor({super.key, required this.store});
+  final PantryStore store;
+  @override
+  State<CosmosTokenEditor> createState() => _CosmosTokenEditorState();
+}
+
+class _CosmosTokenEditorState extends State<CosmosTokenEditor> {
+  late final value = TextEditingController(text: widget.store.data.cosmosToken);
+  bool saving = false;
+  @override
+  void dispose() {
+    value.dispose();
+    super.dispose();
+  }
+
+  Future<void> save(String token) async {
+    setState(() => saving = true);
+    final ok = await perform(
+      context,
+      () => widget.store.change((d) => d.cosmosToken = token),
+    );
+    if (mounted) {
+      if (ok) {
+        Navigator.pop(context);
+      } else {
+        setState(() => saving = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => SheetScaffold(
+    title: 'Mais códigos brasileiros.',
+    subtitle: 'Cosmos Bluesoft, com o seu token pessoal.',
+    footer: FilledButton(
+      onPressed: saving ? null : () => save(value.text.trim()),
+      child: const Text('Salvar token'),
+    ),
+    child: ListView(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+      children: [
+        TextField(
+          controller: value,
+          autocorrect: false,
+          enableSuggestions: false,
+          decoration: const InputDecoration(labelText: 'Token do Cosmos'),
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          'Crie uma conta gratuita em cosmos.bluesoft.com.br e copie o token da área de desenvolvedor. O plano gratuito tem limite diário de consultas. O token fica só neste aparelho e não vai para o backup.',
+          style: TextStyle(color: muted, fontSize: 13),
+        ),
+        if (widget.store.data.cosmosToken.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          TextButton(
+            onPressed: saving ? null : () => save(''),
+            style: TextButton.styleFrom(foregroundColor: dangerInk),
+            child: const Text('Remover token'),
+          ),
+        ],
+      ],
+    ),
   );
 }
 

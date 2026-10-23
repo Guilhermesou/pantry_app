@@ -210,4 +210,39 @@ void main() {
       );
     }
   });
+  test(
+    'an already open package is counted without touching closed stock',
+    () async {
+      final store = create();
+      await store.addOpened('p');
+      final p = store.data.product('p')!;
+      expect(p.closed, 5);
+      expect(p.opened, [.5, 1]);
+      expect(p.openedLotIds, [null, null]);
+      await store.assignOpenedExpiry('p', 1, dateA);
+      await store.assignOpenedExpiry('p', 0, dateA);
+      final dated = store.data.product('p')!;
+      expect(dated.lots, hasLength(1), reason: 'the same date shares a lot');
+      expect(dated.openedLotIds, [dated.lots.single.id, dated.lots.single.id]);
+    },
+  );
+  test('adding a lot with its own date increases the balance', () async {
+    final store = create();
+    await store.addLot('p', 2, dateA);
+    await store.addLot('p', 1, dateB);
+    final p = store.data.product('p')!;
+    expect(p.closed, 8);
+    expect(p.undatedClosed, 5);
+    expect(p.activeLots.map((lot) => (lot.closed, lot.expiry)), [
+      (2, dateA),
+      (1, dateB),
+    ]);
+    expect(store.data.events.where((e) => e.kind == 'purchase'), isEmpty);
+    await expectLater(store.addLot('p', 0, dateA), throwsStateError);
+  });
+  test('the Cosmos token stays on the device', () {
+    final data = AppData(cosmosToken: 'secret');
+    expect(AppData.fromJson(data.toJson()).cosmosToken, 'secret');
+    expect(AppData.fromJson(AppData().toJson()).cosmosToken, isEmpty);
+  });
 }

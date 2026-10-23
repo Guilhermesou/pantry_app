@@ -8,6 +8,7 @@ import 'package:despensa/store.dart';
 import 'package:despensa/toast.dart';
 import 'package:despensa/screens/product.dart';
 import 'package:despensa/screens/lots.dart';
+import 'package:despensa/screens/editors.dart';
 import 'store_test.dart' show MemoryRepository;
 
 void main() {
@@ -159,4 +160,99 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+  testWidgets(
+    'a product with no closed packages can register one already open',
+    (tester) async {
+      final store = PantryStore(
+        MemoryRepository(),
+        AppData(
+          products: [Product(id: 'p', name: 'Achocolatado')],
+        ),
+      );
+      await launch(tester, ProductDetail(store: store, id: 'p'));
+      expect(find.text('Abrir embalagem'), findsNothing);
+      await tester.tap(find.text('Registrar embalagem aberta'));
+      await tester.pumpAndSettle();
+      expect(store.data.product('p')!.opened, [1]);
+      expect(store.data.product('p')!.closed, 0);
+      await tester.tap(find.bySemanticsLabel(RegExp('Toque para baixar')));
+      await tester.pumpAndSettle();
+      expect(store.data.product('p')!.opened, [.75]);
+      expect(find.text('Cerca de ¾'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets('a new lot with another date is added from the lots page', (
+    tester,
+  ) async {
+    final store = PantryStore(
+      MemoryRepository(),
+      AppData(
+        products: [
+          Product(id: 'p', name: 'Achocolatado', opened: [.5]),
+        ],
+      ),
+    );
+    await launch(tester, LotsPage(store: store, id: 'p'));
+    expect(find.text('Embalagem aberta 1 · Metade'), findsOneWidget);
+    await tester.tap(find.text('Adicionar embalagens com validade'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Aumentar Embalagens fechadas'));
+    await tester.pump();
+    await tester.tap(find.text('Anotar validade (opcional)').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('${DateTime.now().day}').last);
+    await tester.tap(find.text('Anotar'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Adicionar ao estoque'));
+    await tester.pumpAndSettle();
+    final p = store.data.product('p')!;
+    expect(p.closed, 2);
+    expect(p.activeLots.single.closed, 2);
+    expect(find.text('2 fechadas · 0 abertas'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+  testWidgets('a new product can start with two different expiry dates', (
+    tester,
+  ) async {
+    final store = PantryStore(MemoryRepository(), AppData());
+    await launch(tester, ProductEditor(store: store));
+    await tester.enterText(find.byType(TextFormField).first, 'Achocolatado');
+    for (final _ in [1, 2, 3]) {
+      await tester.tap(find.byTooltip('Aumentar Embalagens fechadas'));
+      await tester.pump();
+    }
+    Future<void> pickToday(String button) async {
+      await tester.ensureVisible(find.text(button));
+      // Keep the button clear of the sheet footer.
+      await tester.drag(find.byType(ListView), const Offset(0, -160));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(button));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('${DateTime.now().day}').last);
+      await tester.tap(find.text('Anotar'));
+      await tester.pumpAndSettle();
+    }
+
+    await pickToday('Anotar validade (opcional)');
+    await tester.tap(find.byTooltip('Diminuir Com esta validade'));
+    await tester.pump();
+    await tester.scrollUntilVisible(
+      find.text('1 sem validade anotada.'),
+      100,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await pickToday('Outra validade');
+    await tester.scrollUntilVisible(
+      find.text('Todas as fechadas têm validade.'),
+      100,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('Salvar produto'));
+    await tester.pumpAndSettle();
+    final p = store.data.products.single;
+    expect(p.closed, 3);
+    expect(p.lots.map((lot) => lot.closed), [2, 1]);
+    expect(tester.takeException(), isNull);
+  });
 }

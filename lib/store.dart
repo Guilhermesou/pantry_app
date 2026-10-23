@@ -90,6 +90,14 @@ class PantryStore extends ChangeNotifier {
     p.openedLotIds.add(source?.id);
     _event(d, 'Embalagem aberta', p.name);
   });
+
+  /// Counts a package that was already open at home; nothing leaves the closed stock.
+  Future<void> addOpened(String id) => change((d) {
+    final p = d.product(id)!;
+    p.opened.add(1);
+    p.openedLotIds.add(null);
+    _event(d, 'Embalagem aberta registrada', p.name);
+  });
   Future<void> setLevel(String id, int index, double level) => change((d) {
     final p = d.product(id)!;
     if (level == 0) {
@@ -118,12 +126,12 @@ class PantryStore extends ChangeNotifier {
         if (expiry == null) {
           p.openedLotIds[index] = null;
         } else {
-          final lot = StockLot(
-            id: newId(),
-            closed: 0,
-            expiry: calendarDate(expiry),
-          );
-          p.lots.add(lot);
+          final date = calendarDate(expiry);
+          var lot = p.lots.where((lot) => lot.expiry == date).firstOrNull;
+          if (lot == null) {
+            lot = StockLot(id: newId(), closed: 0, expiry: date);
+            p.lots.add(lot);
+          }
           p.openedLotIds[index] = lot.id;
         }
         _event(d, 'Validade do aberto ajustada', p.name);
@@ -164,6 +172,18 @@ class PantryStore extends ChangeNotifier {
       existing.expiry = calendarDate(expiry);
     }
     _event(d, 'Validade anotada', '${p.name} · ${displayDate(expiry)}');
+  });
+
+  /// Packages already at home that were never counted, with their own date.
+  Future<void> addLot(String id, int quantity, DateTime expiry) => change((d) {
+    final p = d.product(id)!;
+    if (quantity < 1) throw StateError('Informe ao menos uma embalagem.');
+    _receive(p, quantity, expiry);
+    _event(
+      d,
+      'Embalagens adicionadas',
+      '${p.name} · $quantity · ${displayDate(expiry)}',
+    );
   });
   Future<void> discardLot(String id, String lotId) => change((d) {
     final p = d.product(id)!;

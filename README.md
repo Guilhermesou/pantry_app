@@ -21,7 +21,7 @@ Escolha um simulador de iPhone ou o seu aparelho. A configuração de assinatura
 - **Carrinho:** marcar itens não altera o estoque. “Concluir compra” confirma a entrada e remove só os itens comprados da lista. A compra fica no histórico.
 - **Estoque:** cadastro por nome, marca, tamanho, local e foto; filtros e busca. O mínimo é uma referência, nunca uma compra automática.
 - **Consumo:** abrir uma embalagem move uma unidade dos fechados para os abertos, mantendo o saldo. Os níveis são Cheio, ¾, Metade, ¼ e Acabou. Cada embalagem aberta tem seu próprio nível. É possível desfazer uma finalização pela mensagem de confirmação.
-- **Código de barras:** câmera nativa ou digitação; consulta primeiro o cadastro local e depois o Open Food Facts. Cadastro manual é o fallback para catálogo ausente ou indisponível. Consultas externas precisam de internet.
+- **Código de barras:** câmera nativa ou digitação; consulta primeiro o cadastro local e depois os catálogos externos (veja abaixo). Cadastro manual é o fallback para catálogo ausente ou indisponível. Consultas externas precisam de internet.
 - **Descrições lembradas:** depois de confirmar uma compra, o app memoriza a descrição original do cupom e o produto escolhido. Na próxima leitura, o vínculo vem preenchido e identificado para conferência. Semelhanças por abreviação aparecem como sugestões que exigem um toque. É possível desmarcar “Lembrar esta descrição” ou esquecer vínculos em Ajustes, com desfazer. Associações fazem parte do backup.
 - **Cupom:** foto pela câmera, galeria ou texto colado. Apple Vision extrai texto no aparelho. Um parser conservador sugere linhas; todos os nomes, vínculos, quantidades e preços são revisáveis. A confirmação é obrigatória. Itens não reconhecidos podem ser adicionados manualmente. Itens vendidos por peso exigem ajustar para a porção comprada.
 - **Backup:** exportação JSON com fotos para a folha de compartilhamento do iOS, permitindo salvar em Arquivos/iCloud Drive. A restauração valida o conteúdo antes de substituir o estado e exige confirmação. O limite de importação é 50 MB.
@@ -104,3 +104,11 @@ flutter test --dart-define=CAPTURE_MOTION=true test/motion_preview_test.dart
 Para codificar os quadros em GIF, use Python com Pillow: `python tool/render_motion.py`. Para incluir um ícone novo, adicione o nome em `tool/symbols.txt`, rode `tool/subset_symbols.sh` e declare a constante em `lib/symbols.dart`. [Ver a prévia animada](docs/preview/13-motion.gif).
 
 A gravação é uma sequência de quadros renderizados pelo Flutter em teste, não uma medição de desempenho em iPhone físico.
+
+## Ajustes do primeiro uso
+
+- **Scanner:** depois de um código não encontrado ou de falha na consulta, a câmera volta a ler na hora. O mesmo código é ignorado enquanto continua enquadrado; outro código é lido normalmente.
+- **Mais catálogos:** a busca consulta, em paralelo, Open Food Facts com `product_type=all` (inclui Open Beauty Facts, Open Pet Food Facts e Open Products Facts), Cosmos Bluesoft (base brasileira, só com token pessoal em Ajustes › Catálogo Cosmos) e UPCitemdb (plano gratuito, limite diário). Vale a resposta da fonte de maior prioridade, nessa ordem. O token fica no aparelho e não vai para o backup exportado.
+- **Embalagens já abertas:** no produto, “Registrar embalagem aberta” (ou “Já tenho outra aberta”) conta uma embalagem aberta sem mexer nas fechadas. A validade da aberta pode ser anotada no produto, no ajuste rápido do Hoje e em Lotes e validades.
+- **Vários lotes:** o cadastro novo aceita uma validade para cada grupo de embalagens. Em Lotes e validades, “Adicionar embalagens com validade” soma embalagens já em casa com uma data própria, sem registrar compra. Abertas com a mesma data compartilham o lote.
+- **Nível no produto:** tocar na ilustração da embalagem aberta baixa ¼, com a mesma animação e o “Desfazer” da tela Hoje.

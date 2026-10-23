@@ -7,11 +7,37 @@ import '../models.dart';
 import '../motion.dart';
 import '../store.dart';
 import '../toast.dart';
+import 'lots.dart' show ExpiryField;
 
 class FinishedOpening {
   const FinishedOpening(this.level, this.lotId);
   final double level;
   final String? lotId;
+}
+
+/// One tap lowers a quarter; the last quarter finishes the package with undo.
+Future<void> lowerOpenedLevel(
+  BuildContext context,
+  PantryStore store,
+  Product p,
+  int index,
+) async {
+  final level = p.opened[index], lotId = p.openedLotIds[index];
+  final next = ((level * 4).round() - 1) / 4;
+  HapticFeedback.selectionClick();
+  if (next > 0) {
+    await perform(context, () => store.setLevel(p.id, index, next));
+    return;
+  }
+  final ok = await perform(context, () => store.setLevel(p.id, index, 0));
+  if (ok && context.mounted) {
+    showToast(
+      context,
+      '${p.name}: embalagem finalizada.',
+      undo: () =>
+          perform(context, () => store.restoreOpened(p.id, level, lotId)),
+    );
+  }
 }
 
 Future<void> showQuickLevel(
@@ -131,11 +157,20 @@ class QuickLevelPage extends StatelessWidget {
                       );
                     },
             ),
+            const SizedBox(height: 22),
+            ExpiryField(
+              value: expiry,
+              enabled: !store.busy,
+              onChanged: (value) => perform(
+                context,
+                () => store.assignOpenedExpiry(id, index, value),
+              ),
+            ),
             if (expiry != null)
               Padding(
-                padding: const EdgeInsets.only(top: 22),
+                padding: const EdgeInsets.only(top: 8),
                 child: Text(
-                  'Validade ${displayDate(expiry)} · ${expiryLabel(expiry, DateTime.now())}',
+                  expiryLabel(expiry, DateTime.now()),
                   textAlign: TextAlign.center,
                   style: const TextStyle(fontSize: 12, color: muted),
                 ),

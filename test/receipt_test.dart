@@ -75,7 +75,11 @@ void main() {
     'catalog handles missing products and includes an identifying user agent',
     () async {
       final client = MockClient((request) async {
+        if (request.url.host != 'world.openfoodfacts.org') {
+          return http.Response('{}', 404);
+        }
         expect(request.url.path, '/api/v3/product/7891234567890.json');
+        expect(request.url.queryParameters['product_type'], 'all');
         expect(request.headers['User-Agent'], contains('DespensaPersonal'));
         return http.Response(
           jsonEncode({
@@ -93,6 +97,7 @@ void main() {
       expect(product!.name, 'Arroz');
       expect(product.pack, '1 kg');
       expect(product.barcode, '7891234567890');
+      expect(product.source, 'Open Food Facts');
       catalog.close();
       final missing = CatalogService(
         client: MockClient((_) async => http.Response('{}', 404)),
@@ -101,4 +106,86 @@ void main() {
       missing.close();
     },
   );
+  test('catalog falls back to other sources in priority order', () async {
+    final hosts = <String>[];
+    http.Response reply(http.Request request) {
+      hosts.add(request.url.host);
+      return switch (request.url.host) {
+        'api.cosmos.bluesoft.com.br' => http.Response(
+          jsonEncode({
+            'description': 'ACHOCOLATADO EM PO',
+            'brand': {'name': 'Marca BR'},
+            'thumbnail': 'https://cosmos.example/a.png',
+          }),
+          200,
+        ),
+        'api.upcitemdb.com' => http.Response(
+          jsonEncode({
+            'items': [
+              {
+                'title': 'Chocolate drink',
+                'images': ['http://x/a.jpg'],
+              },
+            ],
+          }),
+          200,
+        ),
+        _ => http.Response('{}', 404),
+      };
+    }
+
+    final withToken = CatalogService(
+      client: MockClient((request) async {
+        if (request.url.host == 'api.cosmos.bluesoft.com.br') {
+          expect(request.headers['X-Cosmos-Token'], 'secret');
+        }
+        return reply(request);
+      }),
+      cosmosToken: 'secret',
+    );
+    final cosmos = await withToken.lookup('7898366933086');
+    expect(cosmos!.name, 'ACHOCOLATADO EM PO');
+    expect(cosmos.brand, 'Marca BR');
+    expect(cosmos.source, 'Cosmos Bluesoft');
+
+    hosts.clear();
+    final withoutToken = CatalogService(
+      client: MockClient((request) async => reply(request)),
+    );
+    final upc = await withoutToken.lookup('7898366933086');
+    expect(hosts, isNot(contains('api.cosmos.bluesoft.com.br')));
+    expect(upc!.name, 'Chocolate drink');
+    expect(upc.source, 'UPCitemdb');
+    expect(upc.remotePhoto, isEmpty, reason: 'iOS blocks plain http images');
+  });
+  test('catalog names the Open Facts base and reports a full outage', () async {
+    final beauty = CatalogService(
+      client: MockClient(
+        (request) async => request.url.host == 'world.openfoodfacts.org'
+            ? http.Response(
+                jsonEncode({
+                  'product': {
+                    'product_name': 'Creme dental',
+                    'product_type': 'beauty',
+                  },
+                }),
+                200,
+              )
+            : http.Response('{}', 404),
+      ),
+    );
+    expect((await beauty.lookup('6920354822193'))!.source, 'Open Beauty Facts');
+    final offline = CatalogService(
+      client: MockClient((_) async => http.Response('', 503)),
+    );
+    await expectLater(offline.lookup('6920354822193'), throwsA(anything));
+    final partial = CatalogService(
+      client: MockClient(
+        (request) async => request.url.host == 'api.upcitemdb.com'
+            ? http.Response('{"code":"EXCEED_LIMIT"}', 429)
+            : http.Response('{}', 404),
+      ),
+    );
+    expect(await partial.lookup('6920354822193'), isNull);
+  });
 }

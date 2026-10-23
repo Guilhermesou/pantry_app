@@ -32,9 +32,14 @@ class _BarcodePageState extends State<BarcodePage> with WidgetsBindingObserver {
     ],
   );
   final code = TextEditingController();
-  final catalog = CatalogService();
+  late final catalog = CatalogService(
+    cosmosToken: widget.store.data.cosmosToken,
+  );
   bool busy = false, active = false;
   String? message;
+
+  /// The last code that found nothing; the camera keeps seeing it while it is in frame.
+  String? rejected;
   @override
   void initState() {
     super.initState();
@@ -91,9 +96,11 @@ class _BarcodePageState extends State<BarcodePage> with WidgetsBindingObserver {
       if (product == null) {
         setState(() {
           message =
-              'Não encontramos esse produto. Você pode cadastrá-lo uma vez e o app lembrará do código.';
+              'Não encontramos esse código nos catálogos. Cadastre uma vez e o app lembrará dele.';
+          rejected = raw;
           busy = false;
         });
+        await resume();
       } else {
         await showSheet(
           context,
@@ -109,9 +116,25 @@ class _BarcodePageState extends State<BarcodePage> with WidgetsBindingObserver {
       if (mounted) {
         setState(() {
           busy = false;
+          rejected = raw;
           message =
               'Não foi possível consultar o catálogo. Confira sua conexão ou faça o cadastro manual.';
         });
+        await resume();
+      }
+    }
+  }
+
+  /// Brings the preview back after a failed lookup, ready for another code.
+  Future<void> resume() async {
+    if (!active || !mounted) return;
+    try {
+      await scanner.start();
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => message = 'Câmera indisponível. Digite o código abaixo.',
+        );
       }
     }
   }
@@ -130,12 +153,13 @@ class _BarcodePageState extends State<BarcodePage> with WidgetsBindingObserver {
             child: Stack(
               fit: StackFit.expand,
               children: [
+                const ColoredBox(color: fg),
                 if (active)
                   MobileScanner(
                     controller: scanner,
                     onDetect: (capture) {
                       for (final b in capture.barcodes) {
-                        if (b.rawValue != null) {
+                        if (b.rawValue != null && b.rawValue != rejected) {
                           lookup(b.rawValue!);
                           break;
                         }
@@ -154,9 +178,7 @@ class _BarcodePageState extends State<BarcodePage> with WidgetsBindingObserver {
                         ),
                       ),
                     ),
-                  )
-                else
-                  const ColoredBox(color: fg),
+                  ),
                 if (!active)
                   Center(
                     child: FilledButton.icon(
@@ -252,7 +274,7 @@ class _BarcodePageState extends State<BarcodePage> with WidgetsBindingObserver {
         ),
         const SizedBox(height: 16),
         const Text(
-          'Busca de alimentos: Open Food Facts · dados ODbL. Nem todo produto está no catálogo. Confirme nome, marca e embalagem antes de salvar.',
+          'Busca em Open Food Facts (alimentos, higiene, pet e outros · ODbL), UPCitemdb e, com seu token, Cosmos. Nem todo produto está nos catálogos. Confirme nome, marca e embalagem antes de salvar.',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 11, color: faint),
         ),
