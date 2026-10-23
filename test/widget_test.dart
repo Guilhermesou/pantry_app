@@ -29,6 +29,8 @@ void main() {
   ) async {
     final store = await launch(tester, data: AppData());
     await tester.scrollUntilVisible(find.text('Começar minha despensa'), 200);
+    await tester.ensureVisible(find.text('Começar minha despensa'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Começar minha despensa'));
     await tester.pumpAndSettle();
     expect(store.data.onboarded, true);
@@ -40,7 +42,7 @@ void main() {
     'stock opens fluid detail, opens package and updates partial level',
     (tester) async {
       final store = await launch(tester);
-      await tester.tap(find.text('Estoque'));
+      await tester.tap(find.byKey(const ValueKey('nav-2')));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       await tester.tap(find.text('Arroz integral'));
@@ -51,9 +53,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(store.data.product('rice')!.closed, 1);
       expect(store.data.product('rice')!.opened.length, 2);
-      await tester.drag(find.byType(ListView).last, const Offset(0, -500));
+      await tester.ensureVisible(find.byKey(const ValueKey('level-0-1')));
       await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(ChoiceChip, '¼').first);
+      await tester.tap(find.byKey(const ValueKey('level-0-1')));
       await tester.pumpAndSettle();
       expect(store.data.product('rice')!.opened.first, .25);
       expect(tester.takeException(), isNull);
@@ -76,7 +78,7 @@ void main() {
   ) async {
     await launch(tester, size: const Size(375, 667), textScale: 1.4);
     expect(tester.takeException(), isNull);
-    await tester.tap(find.text('Estoque'));
+    await tester.tap(find.byKey(const ValueKey('nav-2')));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     await tester.tap(find.byTooltip('Mais'));

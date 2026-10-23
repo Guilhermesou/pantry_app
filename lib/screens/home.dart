@@ -1,5 +1,5 @@
+import 'dart:math' as math;
 import 'dart:ui';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../design.dart';
@@ -7,18 +7,19 @@ import '../main.dart';
 import '../models.dart';
 import '../motion.dart';
 import '../store.dart';
-import 'editors.dart';
+import '../symbols.dart';
+import '../toast.dart';
 import 'capture.dart';
+import 'editors.dart';
 import 'history.dart';
-import 'lots.dart';
+import 'product.dart';
 import 'quick_level.dart';
+import 'receipts.dart';
 import 'settings.dart';
 import 'shopping.dart';
 import 'stock.dart';
 import 'today.dart';
 import 'welcome.dart';
-
-enum _MoreAction { history, settings }
 
 class PantryHome extends StatefulWidget {
   const PantryHome({super.key, required this.store});
@@ -30,16 +31,16 @@ class PantryHome extends StatefulWidget {
 class _PantryHomeState extends State<PantryHome>
     with WidgetsBindingObserver, TickerProviderStateMixin {
   int tab = 0;
-  bool fabOpen = false;
-  late final fabMotion = AnimationController(
+  bool addOpen = false, moreOpen = false;
+  // Expiry warnings acknowledged with "Vi" during this session; lots stay untouched.
+  final seen = <String>{};
+  late final addMotion = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 430),
-    reverseDuration: const Duration(milliseconds: 260),
+    duration: const Duration(milliseconds: 300),
   );
-  late final tabMotion = AnimationController(
+  late final moreMotion = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 280),
-    value: 1,
+    duration: const Duration(milliseconds: 300),
   );
   PantryStore get store => widget.store;
   AppData get data => store.data;
@@ -52,8 +53,8 @@ class _PantryHomeState extends State<PantryHome>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    fabMotion.dispose();
-    tabMotion.dispose();
+    addMotion.dispose();
+    moreMotion.dispose();
     super.dispose();
   }
 
@@ -62,47 +63,66 @@ class _PantryHomeState extends State<PantryHome>
     if (state == AppLifecycleState.resumed) store.refreshTime();
   }
 
-  void setFab(bool value) {
-    FocusManager.instance.primaryFocus?.unfocus();
-    setState(() => fabOpen = value);
+  void _drive(AnimationController controller, bool open) {
     if (MediaQuery.disableAnimationsOf(context)) {
-      fabMotion.value = value ? 1 : 0;
-    } else if (value) {
-      fabMotion.forward();
+      controller.value = open ? 1 : 0;
+    } else if (open) {
+      controller.forward();
     } else {
-      fabMotion.reverse();
+      controller.reverse();
     }
   }
 
+  void setAdd(bool value) {
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() {
+      addOpen = value;
+      if (value) moreOpen = false;
+    });
+    _drive(addMotion, value);
+    if (value) _drive(moreMotion, false);
+  }
+
+  void setMore(bool value) {
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() {
+      moreOpen = value;
+      if (value) addOpen = false;
+    });
+    _drive(moreMotion, value);
+    if (value) _drive(addMotion, false);
+  }
+
+  void closeOverlays() {
+    if (addOpen) setAdd(false);
+    if (moreOpen) setMore(false);
+  }
+
   void selectTab(int index) {
-    if (index == tab) {
-      if (fabOpen) setFab(false);
-      return;
-    }
+    if (index == tab) return closeOverlays();
     FocusManager.instance.primaryFocus?.unfocus();
     HapticFeedback.selectionClick();
     setState(() {
       tab = index;
-      fabOpen = false;
+      addOpen = moreOpen = false;
     });
-    fabMotion.value = 0;
-    if (MediaQuery.disableAnimationsOf(context)) {
-      tabMotion.value = 1;
-    } else {
-      tabMotion.forward(from: 0);
-    }
+    addMotion.value = 0;
+    moreMotion.value = 0;
   }
 
-  void openPage(BuildContext anchor, Widget page) {
-    final origin = originRect(anchor);
-    if (fabOpen) setFab(false);
-    fluidPage(context, page, origin: origin);
+  void openSheet(Widget page) {
+    closeOverlays();
+    showSheet(context, page);
   }
 
-  void openProduct(BuildContext anchor, Product p) =>
-      openPage(anchor, ProductDetail(store: store, id: p.id));
-  void openLevel(BuildContext anchor, Product p, int index) =>
-      showQuickLevel(context, store, p.id, index, origin: originRect(anchor));
+  void openPage(Widget page) {
+    closeOverlays();
+    pushPage(context, page);
+  }
+
+  void openProduct(Product p) =>
+      openSheet(ProductDetail(store: store, id: p.id));
+
   Future<void> addSuggestion(Product p) async {
     final ok = await perform(
       context,
@@ -110,6 +130,32 @@ class _PantryHomeState extends State<PantryHome>
       success: '${p.name} foi para a lista.',
     );
     if (ok) HapticFeedback.lightImpact();
+  }
+
+  void acknowledgeExpiry(Product p) {
+    HapticFeedback.selectionClick();
+    setState(() => seen.add(expiryKey(p)));
+    showToast(context, '${p.name}: usar primeiro.');
+  }
+
+  /// A tap on an opened package lowers it by a quarter; the last quarter finishes it.
+  Future<void> lowerLevel(Product p, int index) async {
+    final level = p.opened[index], lotId = p.openedLotIds[index];
+    final next = ((level * 4).round() - 1) / 4;
+    HapticFeedback.selectionClick();
+    if (next > 0) {
+      await perform(context, () => store.setLevel(p.id, index, next));
+      return;
+    }
+    final ok = await perform(context, () => store.setLevel(p.id, index, 0));
+    if (ok && mounted) {
+      showToast(
+        context,
+        '${p.name}: embalagem finalizada.',
+        undo: () =>
+            perform(context, () => store.restoreOpened(p.id, level, lotId)),
+      );
+    }
   }
 
   Future<void> toggleItem(ShoppingItem item) async {
@@ -147,433 +193,511 @@ class _PantryHomeState extends State<PantryHome>
     listenable: store,
     builder: (context, _) {
       if (!data.onboarded) return WelcomePage(store: store);
+      final overlay = addOpen || moreOpen;
+      final navBottom = floatingNavBottom(context);
       return PopScope(
-        canPop: !fabOpen,
+        canPop: !overlay,
         onPopInvokedWithResult: (didPop, _) {
-          if (!didPop && fabOpen) setFab(false);
+          if (!didPop) closeOverlays();
         },
         child: Scaffold(
+          resizeToAvoidBottomInset: false,
           body: Stack(
+            fit: StackFit.expand,
             children: [
-              ExcludeSemantics(
-                excluding: fabOpen,
-                child: SafeArea(
-                  bottom: false,
-                  child: Column(
+              Positioned.fill(
+                child: ExcludeSemantics(
+                  excluding: overlay,
+                  child: IndexedStack(
+                    index: tab,
                     children: [
-                      if (data.demo)
-                        Container(
-                          width: double.infinity,
-                          color: peach,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 7,
+                      TickerMode(
+                        enabled: tab == 0,
+                        child: TodayContent(
+                          store: store,
+                          header: _header(
+                            capitalized(todayLabel(DateTime.now())),
                           ),
-                          child: const Text(
-                            'Exemplos · seus dados começam quando você quiser.',
-                            style: TextStyle(fontSize: 10, color: ink),
-                          ),
+                          seen: seen,
+                          onSeen: acknowledgeExpiry,
+                          onList: () => selectTab(1),
+                          onAdd: () => openSheet(ProductEditor(store: store)),
+                          onProduct: openProduct,
+                          onLevelDown: lowerLevel,
+                          onLevelDetail: (p, i) =>
+                              showQuickLevel(context, store, p.id, i),
+                          onSuggestion: addSuggestion,
                         ),
-                      _topBar(),
-                      Expanded(
-                        child: FadeTransition(
-                          opacity: tabMotion.drive(
-                            CurveTween(curve: Curves.easeOut),
+                      ),
+                      TickerMode(
+                        enabled: tab == 1,
+                        child: ShoppingContent(
+                          store: store,
+                          header: _header('Menos esquecimento'),
+                          onEdit: (item) => openSheet(
+                            ShoppingEditor(store: store, item: item),
                           ),
-                          child: SlideTransition(
-                            position: tabMotion.drive(
-                              Tween(
-                                begin: const Offset(0, .018),
-                                end: Offset.zero,
-                              ).chain(CurveTween(curve: Curves.easeOutCubic)),
-                            ),
-                            child: IndexedStack(
-                              index: tab,
-                              children: [
-                                TickerMode(
-                                  enabled: tab == 0,
-                                  child: TodayContent(
-                                    store: store,
-                                    onList: () => selectTab(1),
-                                    onAdd: (anchor) => openPage(
-                                      anchor,
-                                      ProductEditor(store: store),
-                                    ),
-                                    onProduct: openProduct,
-                                    onLevel: openLevel,
-                                    onSuggestion: addSuggestion,
-                                  ),
-                                ),
-                                TickerMode(
-                                  enabled: tab == 1,
-                                  child: ShoppingContent(
-                                    store: store,
-                                    onEdit: (anchor, item) => openPage(
-                                      anchor,
-                                      ShoppingEditor(store: store, item: item),
-                                    ),
-                                    onToggle: toggleItem,
-                                    onBudget: (anchor) => openPage(
-                                      anchor,
-                                      BudgetEditor(store: store),
-                                    ),
-                                    onCheckout: checkout,
-                                    onAdd: (anchor) => openPage(
-                                      anchor,
-                                      ShoppingEditor(store: store),
-                                    ),
-                                  ),
-                                ),
-                                TickerMode(
-                                  enabled: tab == 2,
-                                  child: StockContent(
-                                    store: store,
-                                    onProduct: openProduct,
-                                    onLevel: openLevel,
-                                    onOpen: (p) =>
-                                        choosePackage(context, store, p.id),
-                                    onAdd: (anchor) => openPage(
-                                      anchor,
-                                      ProductEditor(store: store),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                          onToggle: toggleItem,
+                          onBudget: () => openSheet(BudgetEditor(store: store)),
+                        ),
+                      ),
+                      TickerMode(
+                        enabled: tab == 2,
+                        child: StockContent(
+                          store: store,
+                          header: _header('Cuidar do que já está em casa'),
+                          onProduct: openProduct,
+                          onAdd: () => openSheet(ProductEditor(store: store)),
                         ),
                       ),
                     ],
                   ),
                 ),
               ),
-              _addOverlay(),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: navBottom + 102,
+                child: const IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.bottomCenter,
+                        end: Alignment.topCenter,
+                        stops: [0, .55, 1],
+                        colors: [Colors.white, Colors.white, Color(0x00FFFFFF)],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              _checkoutBar(navBottom),
+              _dim(),
+              _addMenu(navBottom),
+              _moreMenu(),
+              Positioned(
+                left: 16,
+                right: 16,
+                bottom: navBottom,
+                child: _navigation(),
+              ),
             ],
           ),
-          bottomNavigationBar: _navigation(),
         ),
       );
     },
   );
 
-  Widget _topBar() => Padding(
-    padding: const EdgeInsets.fromLTRB(24, 12, 16, 8),
+  Widget _header(String label) => Padding(
+    padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
     child: Row(
       children: [
         Expanded(
-          child: Eyebrow(
-            tab == 0
-                ? todayLabel(DateTime.now())
-                : tab == 1
-                ? 'MENOS ESQUECIMENTO'
-                : 'CUIDAR DO QUE JÁ ESTÁ EM CASA',
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 14, color: muted),
           ),
         ),
-        Builder(
-          builder: (anchor) => PopupMenuButton<_MoreAction>(
-            tooltip: 'Mais',
-            position: PopupMenuPosition.under,
-            color: Colors.white,
-            popUpAnimationStyle: AnimationStyle(
-              duration: motionTime(context, 280),
-              curve: Curves.easeOutCubic,
-            ),
+        IconButton(
+          tooltip: 'Mais',
+          onPressed: () => setMore(!moreOpen),
+          style: IconButton.styleFrom(
+            backgroundColor: zinc100,
+            foregroundColor: zinc700,
+            fixedSize: const Size(40, 40),
+            minimumSize: const Size(40, 40),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(22),
+              borderRadius: BorderRadius.circular(12),
             ),
-            icon: const Icon(CupertinoIcons.ellipsis, size: 22, color: ink),
-            onSelected: (action) => openPage(
-              anchor,
-              action == _MoreAction.history
-                  ? HistoryPage(store: store)
-                  : SettingsPage(store: store),
-            ),
-            itemBuilder: (_) => [
-              const PopupMenuItem(
-                value: _MoreAction.history,
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(CupertinoIcons.clock, color: green, size: 20),
-                  title: Text('Histórico', style: TextStyle(fontSize: 14)),
-                  subtitle: Text(
-                    'Compras, aberturas e ajustes',
-                    style: TextStyle(fontSize: 11),
-                  ),
-                ),
-              ),
-              const PopupMenuItem(
-                value: _MoreAction.settings,
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(
-                    CupertinoIcons.slider_horizontal_3,
-                    color: green,
-                    size: 20,
-                  ),
-                  title: Text(
-                    'Ajustes e backup',
-                    style: TextStyle(fontSize: 14),
-                  ),
-                  subtitle: Text(
-                    'Seus dados e preferências',
-                    style: TextStyle(fontSize: 11),
-                  ),
-                ),
-              ),
-            ],
           ),
+          icon: const Icon(Symbols.moreHoriz, size: 22),
         ),
       ],
     ),
   );
 
-  Widget _navigation() => Container(
-    decoration: const BoxDecoration(
-      color: paper,
-      border: Border(top: BorderSide(color: lineColor)),
-    ),
-    child: SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-        child: Row(
-          children: [
-            for (final (index, icon, title) in [
-              (0, CupertinoIcons.sun_max, 'Hoje'),
-              (1, CupertinoIcons.list_bullet, 'Lista'),
-              (2, CupertinoIcons.cube_box, 'Estoque'),
-            ])
-              Expanded(
-                child: Semantics(
-                  selected: tab == index,
-                  child: TouchSurface(
-                    label: 'Abrir $title',
-                    radius: 18,
-                    onTap: () => selectTab(index),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          AnimatedContainer(
-                            duration: motionTime(context, 250),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: tab == index
-                                  ? mint.withValues(alpha: .55)
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            child: Icon(
-                              icon,
-                              size: 22,
-                              color: tab == index ? green : muted,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          AnimatedDefaultTextStyle(
-                            duration: motionTime(context, 180),
-                            style: TextStyle(
-                              fontFamily: '.SF Pro Text',
-                              fontSize: 10,
-                              color: tab == index ? green : muted,
-                              fontWeight: tab == index
-                                  ? FontWeight.w700
-                                  : FontWeight.w400,
-                            ),
-                            child: Text(title),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+  Widget _navigation() => Row(
+    children: [
+      Expanded(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 56),
+              padding: const EdgeInsets.all(4),
+              color: zinc100.withValues(alpha: .92),
+              child: IntrinsicHeight(
+                child: Row(
+                  children: [
+                    for (final (index, icon, title) in [
+                      (0, Symbols.wbSunny, 'Hoje'),
+                      (1, Symbols.checklist, 'Lista'),
+                      (2, Symbols.package2, 'Estoque'),
+                    ]) ...[
+                      if (index > 0) const SizedBox(width: 2),
+                      Expanded(child: _navItem(index, icon, title)),
+                    ],
+                  ],
                 ),
               ),
-            const SizedBox(width: 12),
-            Builder(
-              builder: (anchor) => TouchSurface(
+            ),
+          ),
+        ),
+      ),
+      const SizedBox(width: 10),
+      Tooltip(
+        message: addOpen ? 'Fechar atalhos' : 'Adicionar',
+        child: Semantics(
+          button: true,
+          label: addOpen ? 'Fechar atalhos' : 'Adicionar',
+          child: Container(
+            width: 56,
+            height: 56,
+            decoration: const BoxDecoration(
+              color: primary,
+              shape: BoxShape.circle,
+              boxShadow: shadowPrimary,
+            ),
+            child: Material(
+              type: MaterialType.transparency,
+              shape: const CircleBorder(),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
                 onTap: store.busy
                     ? null
                     : () {
                         HapticFeedback.lightImpact();
-                        setFab(!fabOpen);
+                        setAdd(!addOpen);
                       },
-                label: fabOpen ? 'Fechar atalhos' : 'Adicionar',
-                child: Tooltip(
-                  message: fabOpen ? 'Fechar atalhos' : 'Adicionar',
-                  child: Container(
-                    width: 52,
-                    height: 52,
-                    decoration: const BoxDecoration(
-                      color: ink,
-                      shape: BoxShape.circle,
-                    ),
-                    child: AnimatedRotation(
-                      turns: fabOpen ? .125 : 0,
-                      duration: motionTime(context, 350),
-                      curve: Curves.easeInOutCubicEmphasized,
-                      child: const Icon(
-                        CupertinoIcons.add,
-                        color: paper,
-                        size: 23,
-                      ),
+                splashColor: Colors.white24,
+                child: AnimatedRotation(
+                  turns: addOpen ? .125 : 0,
+                  duration: motionTime(context, 400),
+                  curve: emphasized,
+                  child: const Icon(Symbols.add, color: Colors.white, size: 26),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ],
+  );
+
+  Widget _navItem(int index, IconData icon, String title) {
+    final selected = tab == index;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: title,
+      excludeSemantics: true,
+      child: GestureDetector(
+        key: ValueKey('nav-$index'),
+        behavior: HitTestBehavior.opaque,
+        onTap: () => selectTab(index),
+        child: AnimatedContainer(
+          duration: motionTime(context, 250),
+          constraints: const BoxConstraints(minHeight: 48),
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          decoration: BoxDecoration(
+            color: selected ? Colors.white : Colors.white.withValues(alpha: 0),
+            borderRadius: BorderRadius.circular(999),
+            boxShadow: selected ? shadowSmall : null,
+          ),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  icon,
+                  size: 20,
+                  fill: selected ? 1 : 0,
+                  color: selected ? fg : muted,
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: selected ? fg : muted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _checkoutBar(double navBottom) {
+    final cart = data.list.where((e) => e.checked).length;
+    final visible = cart > 0 && tab == 1;
+    return Positioned(
+      left: 16,
+      right: 16,
+      bottom: navBottom + 72,
+      child: IgnorePointer(
+        ignoring: !visible,
+        child: TweenAnimationBuilder<double>(
+          tween: Tween(end: visible ? 0 : 160),
+          duration: motionTime(context, 450),
+          curve: emphasized,
+          builder: (_, dy, child) => Transform.translate(
+            offset: Offset(0, dy),
+            child: Opacity(opacity: (1 - dy / 160).clamp(0, 1), child: child),
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              color: primary,
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: shadowPrimary,
+            ),
+            child: Material(
+              type: MaterialType.transparency,
+              child: InkWell(
+                key: const ValueKey('checkout-bar'),
+                borderRadius: BorderRadius.circular(14),
+                splashColor: Colors.white24,
+                onTap: store.busy ? null : checkout,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 52),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Symbols.check,
+                          size: 20,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Guardar no estoque · ${cart == 1 ? '1 item' : '$cart itens'}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        AnimatedMoney(
+                          value: data.cart,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ),
             ),
-          ],
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 
-  Widget _addOverlay() => AnimatedBuilder(
-    animation: fabMotion,
+  Widget _dim() => AnimatedBuilder(
+    animation: Listenable.merge([addMotion, moreMotion]),
     builder: (context, _) {
-      if (!fabOpen && !fabMotion.isAnimating) return const SizedBox();
-      final t = fabMotion.value;
-      final actions = <(IconData, String, String, Widget)>[
-        (
-          CupertinoIcons.list_bullet,
-          'Um item na lista',
-          'Nome, quantidade e preço',
-          ShoppingEditor(store: store),
-        ),
-        (
-          CupertinoIcons.cube_box,
-          'Um produto no estoque',
-          'O que você já tem em casa',
-          ProductEditor(store: store),
-        ),
-        (
-          CupertinoIcons.barcode_viewfinder,
-          'Ler código de barras',
-          'Câmera ou digitação',
-          BarcodePage(store: store),
-        ),
-        (
-          CupertinoIcons.doc_text_viewfinder,
-          'Importar um cupom',
-          'Foto, galeria ou texto',
-          ReceiptCapture(store: store),
-        ),
-      ];
+      final t = math.max(addMotion.value, moreMotion.value);
+      if (t == 0) return const SizedBox.shrink();
       return Positioned.fill(
-        child: IgnorePointer(
-          ignoring: !fabOpen,
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: GestureDetector(
-                  onTap: () => setFab(false),
-                  behavior: HitTestBehavior.opaque,
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: t * 7, sigmaY: t * 7),
-                    child: ColoredBox(color: ink.withValues(alpha: t * .16)),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: 24,
-                right: 24,
-                bottom: 16,
-                child: SafeArea(
-                  top: false,
-                  bottom: false,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      for (var i = 0; i < actions.length; i++)
-                        Builder(
-                          builder: (anchor) {
-                            final (icon, title, subtitle, page) = actions[i];
-                            final progress = Curves.easeOutCubic.transform(
-                              ((t - (actions.length - 1 - i) * .08) / .76)
-                                  .clamp(0, 1),
-                            );
-                            return Opacity(
-                              opacity: progress,
-                              child: Transform.translate(
-                                offset: Offset(0, (1 - progress) * 32),
-                                child: Transform.scale(
-                                  scale: .88 + progress * .12,
-                                  alignment: Alignment.bottomRight,
-                                  child: Padding(
-                                    padding: const EdgeInsets.only(top: 10),
-                                    child: TouchSurface(
-                                      onTap: () => openPage(anchor, page),
-                                      child: Surface(
-                                        padding: const EdgeInsets.fromLTRB(
-                                          12,
-                                          10,
-                                          16,
-                                          10,
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Container(
-                                              width: 37,
-                                              height: 37,
-                                              decoration: BoxDecoration(
-                                                color: paper,
-                                                borderRadius:
-                                                    BorderRadius.circular(13),
-                                              ),
-                                              child: Icon(
-                                                icon,
-                                                color: green,
-                                                size: 20,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 12),
-                                            Flexible(
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
-                                                    title,
-                                                    style: const TextStyle(
-                                                      fontSize: 14,
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(height: 2),
-                                                  Text(
-                                                    subtitle,
-                                                    style: const TextStyle(
-                                                      fontSize: 11,
-                                                      color: muted,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+        child: GestureDetector(
+          onTap: closeOverlays,
+          behavior: HitTestBehavior.opaque,
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: t * 4, sigmaY: t * 4),
+            child: ColoredBox(color: Colors.black.withValues(alpha: t * .3)),
           ),
         ),
       );
     },
   );
+
+  Widget _popover({
+    required AnimationController motion,
+    required bool open,
+    required Alignment origin,
+    required Widget child,
+  }) => IgnorePointer(
+    ignoring: !open,
+    child: AnimatedBuilder(
+      animation: motion,
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: shadowLarge,
+        ),
+        child: Material(type: MaterialType.transparency, child: child),
+      ),
+      builder: (_, child) {
+        final t = emphasized.transform(motion.value);
+        return Opacity(
+          opacity: t,
+          child: Transform.scale(
+            scale: .85 + .15 * t,
+            alignment: origin,
+            child: child,
+          ),
+        );
+      },
+    ),
+  );
+
+  Widget _menuItem({
+    required Widget leading,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) => InkWell(
+    borderRadius: BorderRadius.circular(8),
+    onTap: onTap,
+    child: Padding(
+      padding: const EdgeInsets.all(8),
+      child: Row(
+        children: [
+          leading,
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: const TextStyle(fontSize: 12, color: muted),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  Widget _addMenu(double navBottom) {
+    if (!addOpen && addMotion.isDismissed) return const SizedBox.shrink();
+    final actions = <(IconData, String, String, VoidCallback)>[
+      (
+        Symbols.editNote,
+        'Um item na lista',
+        'Nome, quantidade e preço',
+        () => openSheet(ShoppingEditor(store: store)),
+      ),
+      (
+        Symbols.package2,
+        'Um produto no estoque',
+        'O que você já tem em casa',
+        () => openSheet(ProductEditor(store: store)),
+      ),
+      (
+        Symbols.barcodeScanner,
+        'Código de barras',
+        'Câmera ou digitação',
+        () => openPage(BarcodePage(store: store)),
+      ),
+      (
+        Symbols.receiptLong,
+        'Cupom',
+        'Foto, galeria ou texto colado',
+        () => openPage(ReceiptCapture(store: store)),
+      ),
+    ];
+    return Positioned(
+      right: 16,
+      bottom: navBottom + 72,
+      width: 250,
+      child: _popover(
+        motion: addMotion,
+        open: addOpen,
+        origin: Alignment.bottomRight,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(8, 8, 8, 4),
+              child: Text(
+                'Adicionar',
+                style: TextStyle(fontSize: 12, color: muted),
+              ),
+            ),
+            for (final (icon, title, subtitle, onTap) in actions)
+              _menuItem(
+                leading: IconTile(icon),
+                title: title,
+                subtitle: subtitle,
+                onTap: onTap,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _moreMenu() {
+    if (!moreOpen && moreMotion.isDismissed) return const SizedBox.shrink();
+    Widget item(IconData icon, String title, String subtitle, Widget page) =>
+        _menuItem(
+          leading: Icon(icon, size: 20, color: muted),
+          title: title,
+          subtitle: subtitle,
+          onTap: () => openPage(page),
+        );
+    return Positioned(
+      top: MediaQuery.paddingOf(context).top + 50,
+      right: 16,
+      width: 240,
+      child: _popover(
+        motion: moreMotion,
+        open: moreOpen,
+        origin: Alignment.topRight,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            item(
+              Symbols.history,
+              'Histórico',
+              'Compras, aberturas e ajustes',
+              HistoryPage(store: store),
+            ),
+            item(
+              Symbols.receiptLong,
+              'Notas e cupons',
+              'Comprovantes das suas compras',
+              ReceiptsPage(store: store),
+            ),
+            const Divider(height: 9, indent: 8, endIndent: 8, color: zinc200),
+            item(
+              Symbols.tune,
+              'Ajustes e backup',
+              'Orçamento, dados e exemplos',
+              SettingsPage(store: store),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

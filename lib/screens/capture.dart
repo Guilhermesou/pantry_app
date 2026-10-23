@@ -1,4 +1,3 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -7,110 +6,12 @@ import '../design.dart';
 import '../main.dart';
 import '../models.dart';
 import '../services.dart';
+import '../motion.dart';
 import '../store.dart';
+import '../symbols.dart';
 import 'editors.dart';
 import 'lots.dart';
-
-class AddHub extends StatelessWidget {
-  const AddHub({super.key, required this.store, required this.tab});
-  final PantryStore store;
-  final int tab;
-  @override
-  Widget build(BuildContext context) => PanelScaffold(
-    title: 'O que vamos adicionar?',
-    subtitle: 'Escolha o caminho mais simples para você.',
-    child: ListView(
-      padding: const EdgeInsets.all(24),
-      children: [
-        _option(
-          context,
-          CupertinoIcons.list_bullet,
-          'Um item na lista',
-          'Pode ser só “leite”. A marca você decide depois.',
-          ShoppingEditor(store: store),
-        ),
-        _option(
-          context,
-          CupertinoIcons.barcode_viewfinder,
-          'Ler código de barras',
-          'Reconheça um produto pela embalagem.',
-          BarcodePage(store: store),
-        ),
-        _option(
-          context,
-          CupertinoIcons.cube_box,
-          'Um produto no estoque',
-          'Nome, foto e o que já tem em casa.',
-          ProductEditor(store: store),
-        ),
-        _option(
-          context,
-          CupertinoIcons.doc_text_viewfinder,
-          'Importar um cupom',
-          'Fotografe, confira e guarde a compra.',
-          ReceiptCapture(store: store),
-        ),
-        const SizedBox(height: 20),
-        const Text(
-          'A lista e o estoque funcionam sem internet. A consulta a novos códigos precisa de conexão.',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: muted, fontSize: 12),
-        ),
-      ],
-    ),
-  );
-  Widget _option(
-    BuildContext context,
-    IconData icon,
-    String title,
-    String description,
-    Widget destination,
-  ) => Padding(
-    padding: const EdgeInsets.only(bottom: 14),
-    child: Builder(
-      builder: (anchor) => InkWell(
-        borderRadius: BorderRadius.circular(26),
-        onTap: () async {
-          await fluidPage(context, destination, origin: originRect(anchor));
-          if (context.mounted) Navigator.pop(context);
-        },
-        child: Surface(
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(13),
-                decoration: BoxDecoration(
-                  color: mint,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icon(icon, color: green, size: 25),
-              ),
-              const SizedBox(width: 15),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      description,
-                      style: const TextStyle(color: muted, fontSize: 12),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              const Icon(CupertinoIcons.chevron_right, size: 14, color: muted),
-            ],
-          ),
-        ),
-      ),
-    ),
-  );
-}
+import 'product.dart';
 
 class BarcodePage extends StatefulWidget {
   const BarcodePage({super.key, required this.store});
@@ -176,7 +77,7 @@ class _BarcodePageState extends State<BarcodePage> with WidgetsBindingObserver {
     final local = widget.store.data.byBarcode(raw);
     if (local != null) {
       if (mounted) {
-        await fluidPage(
+        await showSheet(
           context,
           ProductDetail(store: widget.store, id: local.id),
         );
@@ -194,7 +95,7 @@ class _BarcodePageState extends State<BarcodePage> with WidgetsBindingObserver {
           busy = false;
         });
       } else {
-        await fluidPage(
+        await showSheet(
           context,
           ProductEditor(
             store: widget.store,
@@ -220,12 +121,12 @@ class _BarcodePageState extends State<BarcodePage> with WidgetsBindingObserver {
     title: 'Apontou, encontrou.',
     subtitle: 'Enquadre o código de barras da embalagem.',
     child: ListView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
       children: [
         AspectRatio(
           aspectRatio: 1.1,
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(28),
+            borderRadius: BorderRadius.circular(14),
             child: Stack(
               fit: StackFit.expand,
               children: [
@@ -241,24 +142,24 @@ class _BarcodePageState extends State<BarcodePage> with WidgetsBindingObserver {
                       }
                     },
                     errorBuilder: (context, error) => const ColoredBox(
-                      color: ink,
+                      color: fg,
                       child: Center(
                         child: Padding(
                           padding: EdgeInsets.all(24),
                           child: Text(
                             'Câmera indisponível. Autorize nos Ajustes do iPhone ou digite o código abaixo.',
                             textAlign: TextAlign.center,
-                            style: TextStyle(color: paper),
+                            style: TextStyle(color: Colors.white),
                           ),
                         ),
                       ),
                     ),
                   )
                 else
-                  const ColoredBox(color: ink),
+                  const ColoredBox(color: fg),
                 if (!active)
                   Center(
-                    child: FilledButton.tonalIcon(
+                    child: FilledButton.icon(
                       onPressed: () async {
                         setState(() => active = true);
                         await Future<void>.delayed(
@@ -277,7 +178,7 @@ class _BarcodePageState extends State<BarcodePage> with WidgetsBindingObserver {
                           }
                         }
                       },
-                      icon: const Icon(CupertinoIcons.camera),
+                      icon: const Icon(Symbols.photoCamera, size: 19),
                       label: const Text('Ativar câmera'),
                     ),
                   ),
@@ -285,9 +186,10 @@ class _BarcodePageState extends State<BarcodePage> with WidgetsBindingObserver {
                   const IgnorePointer(
                     child: Center(
                       child: Icon(
-                        CupertinoIcons.viewfinder,
+                        Symbols.centerFocusWeak,
                         size: 150,
-                        color: Color(0xFFDBE8D6),
+                        weight: 200,
+                        color: Colors.white70,
                       ),
                     ),
                   ),
@@ -295,7 +197,7 @@ class _BarcodePageState extends State<BarcodePage> with WidgetsBindingObserver {
                   const ColoredBox(
                     color: Color(0x99000000),
                     child: Center(
-                      child: CircularProgressIndicator(color: paper),
+                      child: CircularProgressIndicator(color: Colors.white),
                     ),
                   ),
               ],
@@ -310,7 +212,7 @@ class _BarcodePageState extends State<BarcodePage> with WidgetsBindingObserver {
           onSubmitted: lookup,
           decoration: const InputDecoration(
             labelText: 'Ou digite o código',
-            prefixIcon: Icon(CupertinoIcons.barcode),
+            prefixIcon: Icon(Symbols.barcode, size: 20),
           ),
         ),
         const SizedBox(height: 14),
@@ -321,7 +223,10 @@ class _BarcodePageState extends State<BarcodePage> with WidgetsBindingObserver {
         if (message != null)
           Padding(
             padding: const EdgeInsets.only(top: 20),
-            child: Text(message!, style: const TextStyle(color: orange)),
+            child: Text(
+              message!,
+              style: const TextStyle(color: dangerInk, fontSize: 13),
+            ),
           ),
         const SizedBox(height: 14),
         TextButton(
@@ -330,7 +235,7 @@ class _BarcodePageState extends State<BarcodePage> with WidgetsBindingObserver {
               : () async {
                   await scanner.stop();
                   if (!context.mounted) return;
-                  await fluidPage(
+                  await showSheet(
                     context,
                     ProductEditor(
                       store: widget.store,
@@ -349,7 +254,7 @@ class _BarcodePageState extends State<BarcodePage> with WidgetsBindingObserver {
         const Text(
           'Busca de alimentos: Open Food Facts · dados ODbL. Nem todo produto está no catálogo. Confirme nome, marca e embalagem antes de salvar.',
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 10, color: muted),
+          style: TextStyle(fontSize: 11, color: faint),
         ),
       ],
     ),
@@ -428,7 +333,7 @@ class _ReceiptCaptureState extends State<ReceiptCapture> {
               if (lines.isEmpty) {
                 lines.add(ReceiptLine(name: '', selected: true));
               }
-              final saved = await fluidPage<bool>(
+              final saved = await pushPage<bool>(
                 context,
                 ReceiptReview(
                   store: widget.store,
@@ -441,18 +346,13 @@ class _ReceiptCaptureState extends State<ReceiptCapture> {
       child: const Text('Revisar itens da compra'),
     ),
     child: ListView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
       children: [
         Surface(
-          color: mint,
           child: Column(
             children: [
-              const Icon(
-                CupertinoIcons.doc_text_viewfinder,
-                size: 52,
-                color: green,
-              ),
-              const SizedBox(height: 16),
+              const IconTile(Symbols.documentScanner, size: 56, iconSize: 30),
+              const SizedBox(height: 14),
               const Text(
                 'Cupom inteiro. Boa luz. Sem dobras.',
                 style: TextStyle(fontWeight: FontWeight.w600),
@@ -461,20 +361,22 @@ class _ReceiptCaptureState extends State<ReceiptCapture> {
               const Text(
                 'Depois da leitura, você confere os nomes, as quantidades de embalagens e os preços.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12, color: green),
+                style: TextStyle(fontSize: 13, color: muted),
               ),
               const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
                   onPressed: busy ? null : () => capture(ImageSource.camera),
-                  icon: const Icon(CupertinoIcons.camera, size: 18),
+                  icon: const Icon(Symbols.photoCamera, size: 19),
                   label: const Text('Fotografar cupom'),
                 ),
               ),
-              TextButton(
+              const SizedBox(height: 8),
+              TextButton.icon(
                 onPressed: busy ? null : () => capture(ImageSource.gallery),
-                child: const Text('Escolher foto existente'),
+                icon: const Icon(Symbols.photoLibrary, size: 18),
+                label: const Text('Escolher foto existente'),
               ),
               if (busy)
                 const Padding(
@@ -485,7 +387,7 @@ class _ReceiptCaptureState extends State<ReceiptCapture> {
           ),
         ),
         const SizedBox(height: 22),
-        const Eyebrow('OU COLE O TEXTO DO CUPOM'),
+        const SectionLabel('Ou cole o texto do cupom'),
         const SizedBox(height: 12),
         TextField(
           controller: text,
@@ -498,12 +400,15 @@ class _ReceiptCaptureState extends State<ReceiptCapture> {
         if (error != null)
           Padding(
             padding: const EdgeInsets.only(top: 14),
-            child: Text(error!, style: const TextStyle(color: orange)),
+            child: Text(
+              error!,
+              style: const TextStyle(color: dangerInk, fontSize: 13),
+            ),
           ),
         const SizedBox(height: 18),
         const Text(
           'Nesta versão: foto ou texto do cupom. PDF, XML e consulta de NFC-e por QR Code ficam para uma próxima etapa.',
-          style: TextStyle(fontSize: 11, color: muted),
+          style: TextStyle(fontSize: 12, color: faint),
         ),
       ],
     ),
@@ -573,13 +478,13 @@ class _ReceiptReviewState extends State<ReceiptReview> {
       child: Form(
         key: form,
         child: ListView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
           children: [
             Surface(
-              color: peach,
+              color: warningSoft,
               child: const Text(
                 'A leitura pode confundir linhas, pesos e descontos. Confira o preço por embalagem. Para itens vendidos por peso, cadastre a porção comprada como 1 embalagem.',
-                style: TextStyle(fontSize: 12),
+                style: TextStyle(fontSize: 13, color: warningInk),
               ),
             ),
             const SizedBox(height: 16),
@@ -588,7 +493,7 @@ class _ReceiptReviewState extends State<ReceiptReview> {
                 key: ObjectKey(l),
                 padding: const EdgeInsets.only(bottom: 16),
                 child: Surface(
-                  padding: const EdgeInsets.all(15),
+                  padding: const EdgeInsets.all(14),
                   child: Column(
                     children: [
                       Row(
@@ -631,9 +536,10 @@ class _ReceiptReviewState extends State<ReceiptReview> {
                             child: Row(
                               children: [
                                 const Icon(
-                                  CupertinoIcons.checkmark_circle,
-                                  size: 17,
-                                  color: green,
+                                  Symbols.checkCircle,
+                                  size: 18,
+                                  fill: 1,
+                                  color: success,
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
@@ -642,8 +548,8 @@ class _ReceiptReviewState extends State<ReceiptReview> {
                                         ? 'Você já associou esta descrição antes. Confira o vínculo.'
                                         : 'Mesmo nome no estoque. Confira a embalagem.',
                                     style: const TextStyle(
-                                      color: green,
-                                      fontSize: 11,
+                                      color: successInk,
+                                      fontSize: 12,
                                     ),
                                   ),
                                 ),
@@ -654,7 +560,7 @@ class _ReceiptReviewState extends State<ReceiptReview> {
                           Padding(
                             padding: const EdgeInsets.symmetric(vertical: 10),
                             child: Surface(
-                              color: mint,
+                              color: primarySoft,
                               padding: const EdgeInsets.all(12),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -730,7 +636,7 @@ class _ReceiptReviewState extends State<ReceiptReview> {
                             ),
                             subtitle: const Text(
                               'Só depois de confirmar esta compra.',
-                              style: TextStyle(fontSize: 10, color: muted),
+                              style: TextStyle(fontSize: 11, color: muted),
                             ),
                           ),
                         const SizedBox(height: 12),
@@ -773,7 +679,7 @@ class _ReceiptReviewState extends State<ReceiptReview> {
             TextButton.icon(
               onPressed: () =>
                   setState(() => widget.lines.add(ReceiptLine(name: ''))),
-              icon: const Icon(CupertinoIcons.add, size: 18),
+              icon: const Icon(Symbols.add, size: 18),
               label: const Text('Adicionar item que faltou'),
             ),
             CheckboxListTile(
@@ -792,12 +698,12 @@ class _ReceiptReviewState extends State<ReceiptReview> {
             const SizedBox(height: 16),
             Text(
               '${selected.length} itens · ${money(total < 0 ? 0 : total)}',
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 21),
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 22),
             ),
             const SizedBox(height: 12),
             const Text(
-              'Não importe o cupom se você já guardou esta compra usando “Concluir compra”. Isso somaria as quantidades novamente.',
-              style: TextStyle(color: orange, fontSize: 12),
+              'Não importe o cupom se você já guardou esta compra usando “Guardar no estoque” na lista. Isso somaria as quantidades novamente.',
+              style: TextStyle(color: warningInk, fontSize: 12),
             ),
           ],
         ),

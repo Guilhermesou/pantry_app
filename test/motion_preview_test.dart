@@ -3,43 +3,24 @@ import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:despensa/main.dart';
 import 'package:despensa/models.dart';
 import 'package:despensa/store.dart';
+import 'preview_test.dart' show loadAppFonts;
 import 'store_test.dart' show MemoryRepository;
 
 // Captures actual Flutter animation frames. No animation runs continuously in the app.
 void main() {
   testWidgets(
-    'record add shortcuts, liquid page reveal and reverse transition',
+    'record add shortcuts, sheet reveal and reverse transition',
     (tester) async {
       tester.view.physicalSize = const Size(393, 852);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
-      await tester.runAsync(() async {
-        for (final (name, asset) in [
-          (
-            'packages/cupertino_icons/CupertinoIcons',
-            'packages/cupertino_icons/assets/CupertinoIcons.ttf',
-          ),
-          ('MaterialIcons', 'fonts/MaterialIcons-Regular.otf'),
-        ]) {
-          final loader = FontLoader(name)..addFont(rootBundle.load(asset));
-          await loader.load();
-        }
-        for (final entry in {
-          'Georgia': '/System/Library/Fonts/Supplemental/Georgia.ttf',
-          '.SF Pro Text': '/System/Library/Fonts/SFNS.ttf',
-        }.entries) {
-          final bytes = await File(entry.value).readAsBytes();
-          final loader = FontLoader(entry.key)
-            ..addFont(Future.value(ByteData.sublistView(bytes)));
-          await loader.load();
-        }
-      });
+      await tester.runAsync(loadAppFonts);
+      debugDisableShadows = false;
       final boundary = GlobalKey();
       await tester.pumpWidget(
         RepaintBoundary(
@@ -102,6 +83,7 @@ void main() {
         () async =>
             File('docs/motion/manifest.json').writeAsString(jsonEncode(frames)),
       );
+      debugDisableShadows = true;
     },
     skip: !const bool.fromEnvironment('CAPTURE_MOTION'),
   );

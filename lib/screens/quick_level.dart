@@ -1,11 +1,12 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../design.dart';
+import '../illustration.dart';
 import '../main.dart';
 import '../models.dart';
 import '../motion.dart';
 import '../store.dart';
+import '../toast.dart';
 
 class FinishedOpening {
   const FinishedOpening(this.level, this.lotId);
@@ -17,25 +18,20 @@ Future<void> showQuickLevel(
   BuildContext context,
   PantryStore store,
   String id,
-  int index, {
-  Rect? origin,
-}) async {
-  final result = await fluidPage<FinishedOpening>(
+  int index,
+) async {
+  final name = store.data.product(id)?.name ?? 'Produto';
+  final result = await showSheet<FinishedOpening>(
     context,
     QuickLevelPage(store: store, id: id, index: index),
-    origin: origin,
   );
   if (result != null && context.mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Embalagem finalizada.'),
-        action: SnackBarAction(
-          label: 'Desfazer',
-          onPressed: () => perform(
-            context,
-            () => store.restoreOpened(id, result.level, result.lotId),
-          ),
-        ),
+    showToast(
+      context,
+      '$name: embalagem finalizada.',
+      undo: () => perform(
+        context,
+        () => store.restoreOpened(id, result.level, result.lotId),
       ),
     );
   }
@@ -57,17 +53,22 @@ class QuickLevelPage extends StatelessWidget {
     builder: (context, _) {
       final p = store.data.product(id);
       if (p == null || index >= p.opened.length) {
-        return const PanelScaffold(
+        return const SheetScaffold(
           title: 'Tudo atualizado.',
           child: SizedBox(),
         );
       }
       final level = p.opened[index];
       final expiry = p.lot(p.openedLotIds[index])?.expiry;
-      return PanelScaffold(
+      return SheetScaffold(
+        leading: ProductArt(product: p),
         title: 'Quanto ainda tem?',
         subtitle: '${p.name} · embalagem aberta ${index + 1}',
-        footer: FilledButton.icon(
+        footer: AppButton(
+          label: 'Acabou esta embalagem',
+          tone: ButtonTone.danger,
+          height: 48,
+          expand: true,
           onPressed: store.busy
               ? null
               : () async {
@@ -81,65 +82,58 @@ class QuickLevelPage extends StatelessWidget {
                   );
                   if (ok && context.mounted) Navigator.pop(context, previous);
                 },
-          icon: const Icon(CupertinoIcons.checkmark_alt, size: 18),
-          label: const Text('Acabou esta embalagem'),
         ),
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+          padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
           children: [
-            const Center(child: Eyebrow('NO OLHÔMETRO')),
-            const SizedBox(height: 24),
-            Center(child: LiquidLevel(level: level, size: 170)),
-            const SizedBox(height: 22),
+            const Center(child: SectionLabel('No olhômetro')),
+            const SizedBox(height: 18),
+            Center(
+              child: PackageIllustration(product: p, level: level, width: 120),
+            ),
+            const SizedBox(height: 18),
             AnimatedSwitcher(
               duration: motionTime(context, 180),
-              child: Editorial(
+              child: Text(
                 levelNames[(level * 4).round()],
                 key: ValueKey(level),
-                size: 30,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -.4,
+                ),
               ),
             ),
-            const SizedBox(height: 12),
-            const Text(
-              'Escolha o nível mais próximo.\nSem pesar, sem medir.',
+            const SizedBox(height: 4),
+            Text(
+              'aprox. ${(level * 100).round()}% · sem pesar, sem medir',
               textAlign: TextAlign.center,
-              style: TextStyle(color: muted, fontSize: 13),
+              style: const TextStyle(color: muted, fontSize: 13),
             ),
-            const SizedBox(height: 24),
-            Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                for (final (value, label) in [
-                  (1, '¼'),
-                  (2, '½'),
-                  (3, '¾'),
-                  (4, 'Cheio'),
-                ])
-                  ChoiceChip(
-                    label: Text(label),
-                    selected: (level * 4).round() == value,
-                    selectedColor: ink,
-                    labelStyle: TextStyle(
-                      color: (level * 4).round() == value ? paper : ink,
-                    ),
-                    showCheckmark: false,
-                    onSelected: store.busy
-                        ? null
-                        : (_) {
-                            HapticFeedback.selectionClick();
-                            perform(
-                              context,
-                              () => store.setLevel(id, index, value / 4),
-                            );
-                          },
-                  ),
+            const SizedBox(height: 22),
+            SegmentedPicker<int>(
+              keyPrefix: 'quick-level',
+              options: const [
+                (1, '¼', null),
+                (2, '½', null),
+                (3, '¾', null),
+                (4, 'Cheio', null),
               ],
+              selected: (level * 4).round(),
+              onSelected: store.busy
+                  ? null
+                  : (value) {
+                      HapticFeedback.selectionClick();
+                      perform(
+                        context,
+                        () => store.setLevel(id, index, value / 4),
+                      );
+                    },
             ),
             if (expiry != null)
               Padding(
-                padding: const EdgeInsets.only(top: 24),
+                padding: const EdgeInsets.only(top: 22),
                 child: Text(
                   'Validade ${displayDate(expiry)} · ${expiryLabel(expiry, DateTime.now())}',
                   textAlign: TextAlign.center,

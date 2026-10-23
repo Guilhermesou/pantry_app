@@ -1,162 +1,87 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../design.dart';
 import '../models.dart';
 import '../motion.dart';
 import '../store.dart';
+import '../symbols.dart';
 
-class ShoppingContent extends StatefulWidget {
+const _priorityDots = {
+  Priority.essential: success,
+  Priority.flexible: warning,
+  Priority.later: faint,
+};
+
+class ShoppingContent extends StatelessWidget {
   const ShoppingContent({
     super.key,
     required this.store,
+    required this.header,
     required this.onEdit,
     required this.onToggle,
     required this.onBudget,
-    required this.onCheckout,
-    required this.onAdd,
   });
   final PantryStore store;
-  final void Function(BuildContext, ShoppingItem) onEdit;
+  final Widget header;
+  final void Function(ShoppingItem) onEdit;
   final Future<void> Function(ShoppingItem) onToggle;
-  final void Function(BuildContext) onBudget, onAdd;
-  final Future<void> Function() onCheckout;
-  @override
-  State<ShoppingContent> createState() => _ShoppingContentState();
-}
-
-class _ShoppingContentState extends State<ShoppingContent> {
-  bool cartExpanded = false;
+  final VoidCallback onBudget;
   @override
   Widget build(BuildContext context) {
-    final data = widget.store.data;
-    return LayoutBuilder(
-      builder: (context, bounds) => Column(
-        children: [
-          Expanded(
-            child: ListView(
-              key: const PageStorageKey('shopping-scroll'),
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    const Expanded(child: Editorial('Sua próxima\ncompra.')),
-                    Text(
-                      '${data.list.where((e) => e.checked).length} de ${data.list.length} itens',
-                      style: const TextStyle(fontSize: 11, color: muted),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 22),
-                Builder(
-                  builder: (anchor) => TouchSurface(
-                    onTap: () => widget.onBudget(anchor),
-                    label: 'Editar orçamento da compra',
-                    child: _PlannedBudget(data: data),
-                  ),
-                ),
-                if (data.list.isEmpty)
-                  EmptyState(
-                    icon: CupertinoIcons.bag,
-                    title: 'Uma lista leve.',
-                    message:
-                        'Adicione o que precisa agora.\nO que pode esperar também tem seu lugar.',
-                    action: Builder(
-                      builder: (anchor) => FilledButton(
-                        onPressed: () => widget.onAdd(anchor),
-                        child: const Text('Montar minha lista'),
-                      ),
-                    ),
-                  ),
-                for (final priority in Priority.values)
-                  if (data.list.any((e) => e.priority == priority)) ...[
-                    const SizedBox(height: 24),
-                    Row(
-                      children: [
-                        Container(
-                          width: 6,
-                          height: 6,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: priority == Priority.essential
-                                ? green
-                                : priority == Priority.flexible
-                                ? orange
-                                : muted,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(child: Eyebrow(priority.label)),
-                        Text(
-                          priority == Priority.later
-                              ? 'fora do total'
-                              : '${data.list.where((e) => e.priority == priority).length}',
-                          style: const TextStyle(fontSize: 10, color: muted),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 11),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(26),
-                      child: ColoredBox(
-                        color: Colors.white,
-                        child: Column(
-                          children: [
-                            for (final item in data.list.where(
-                              (e) => e.priority == priority,
-                            ))
-                              _ShoppingRow(
-                                key: ValueKey(item.id),
-                                item: item,
-                                product: data.product(item.productId),
-                                busy: widget.store.busy,
-                                onToggle: () => widget.onToggle(item),
-                                onEdit: (anchor) => widget.onEdit(anchor, item),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                if (data.list.isNotEmpty)
-                  const Padding(
-                    padding: EdgeInsets.fromLTRB(8, 18, 8, 0),
-                    child: Text(
-                      'Marcar não altera o estoque. Só ao guardar a compra.\nToque no nome para editar quantidade e preço.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: muted, fontSize: 11),
-                    ),
-                  ),
-              ],
-            ),
+    final data = store.data;
+    final carting = data.list.any((e) => e.checked);
+    return ListView(
+      key: const PageStorageKey('shopping-scroll'),
+      padding: tabPadding(context, extra: carting ? 64 : 0),
+      children: [
+        header,
+        const Padding(
+          padding: EdgeInsets.fromLTRB(20, 2, 20, 0),
+          child: Headline('Sua próxima compra.'),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+          child: TouchSurface(
+            onTap: onBudget,
+            label: 'Editar orçamento da compra',
+            child: _PlannedBudget(data: data),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
-            child: AnimatedSize(
-              duration: motionTime(context, 420),
-              curve: Curves.easeInOutCubicEmphasized,
-              alignment: Alignment.bottomCenter,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: bounds.maxHeight * .48),
-                child: _CartPanel(
-                  data: data,
-                  expanded: cartExpanded,
-                  busy: widget.store.busy,
-                  onToggle: () => setState(() => cartExpanded = !cartExpanded),
-                  onBudget: widget.onBudget,
-                  onCheckout: () async {
-                    await widget.onCheckout();
-                    if (mounted &&
-                        !widget.store.data.list.any((e) => e.checked)) {
-                      setState(() => cartExpanded = false);
-                    }
-                  },
-                ),
+        ),
+        for (final priority in Priority.values)
+          if (data.list.any((e) => e.priority == priority)) ...[
+            _GroupHeader(
+              priority: priority,
+              count: data.list.where((e) => e.priority == priority).length,
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 22),
+              child: _Group(
+                items: data.list.where((e) => e.priority == priority).toList(),
+                data: data,
+                busy: store.busy,
+                onToggle: onToggle,
+                onEdit: onEdit,
               ),
             ),
+          ],
+        if (data.list.isEmpty)
+          const Padding(
+            padding: EdgeInsets.fromLTRB(20, 22, 20, 0),
+            child: EmptyState(
+              title: 'Uma lista leve.',
+              message: 'Use o + ou toque em “Pôr na lista” no Hoje.',
+            ),
           ),
-        ],
-      ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(32, 16, 32, 0),
+          child: Text(
+            data.list.isEmpty
+                ? 'Marcar não mexe no estoque. Só ao guardar a compra.'
+                : 'Marcar não mexe no estoque. Só ao guardar a compra.\nToque e segure um item para editar.',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 12, color: faint),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -166,107 +91,216 @@ class _PlannedBudget extends StatelessWidget {
   final AppData data;
   @override
   Widget build(BuildContext context) {
+    final over = data.budget > 0 && data.planned > data.budget;
     final missing = data.list
         .where((e) => e.priority != Priority.later && e.price == 0)
         .length;
     return Surface(
-      color: ink,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               const Expanded(
-                child: Eyebrow('PLANEJADO', color: Color(0xFFB4C9BA)),
+                child: Text(
+                  'Planejado',
+                  style: TextStyle(fontSize: 14, color: muted),
+                ),
               ),
-              const Icon(
-                CupertinoIcons.pencil,
-                size: 15,
-                color: Color(0xFFB4C9BA),
+              Tag(
+                data.budget == 0 ? 'Definir' : money(data.budget),
+                icon: Symbols.edit,
+                size: 12,
               ),
             ],
           ),
-          const SizedBox(height: 13),
+          const SizedBox(height: 6),
           AnimatedMoney(
             value: data.planned,
             style: const TextStyle(
-              fontFamily: 'Georgia',
-              fontSize: 33,
-              color: paper,
-              letterSpacing: -1,
+              fontSize: 30,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -.6,
             ),
           ),
-          if (data.budget > 0) ...[
-            const SizedBox(height: 17),
-            BudgetTrack(
-              planned: data.planned,
-              cart: data.cart,
-              budget: data.budget,
-            ),
-            const SizedBox(height: 10),
-          ],
-          Text(
-            data.budget == 0
-                ? 'Toque para definir um orçamento'
-                : data.planned > data.budget
-                ? '${money(data.planned - data.budget)} acima de ${money(data.budget)}'
-                : '${money(data.budget - data.planned)} de margem · de ${money(data.budget)}',
-            style: const TextStyle(color: Color(0xFFB4C9BA), fontSize: 11),
+          const SizedBox(height: 12),
+          BudgetTrack(
+            planned: data.planned,
+            cart: data.cart,
+            budget: data.budget,
           ),
           const SizedBox(height: 8),
-          Text(
-            missing > 0
-                ? 'Estimativa parcial · $missing ${missing == 1 ? 'item sem preço' : 'itens sem preço'}'
-                : 'Estimativa com os preços informados',
-            style: const TextStyle(color: Color(0xFFB4C9BA), fontSize: 10),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  data.budget == 0
+                      ? 'Toque para definir um orçamento'
+                      : over
+                      ? '${money(data.planned - data.budget)} acima'
+                      : '${money(data.budget - data.planned)} de margem',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: over ? dangerInk : muted,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '${data.list.length} ${data.list.length == 1 ? 'item' : 'itens'}',
+                style: const TextStyle(fontSize: 12, color: muted),
+              ),
+            ],
           ),
+          if (missing > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'Estimativa parcial · $missing ${missing == 1 ? 'item sem preço' : 'itens sem preço'}',
+                style: const TextStyle(fontSize: 11, color: faint),
+              ),
+            ),
         ],
       ),
     );
   }
 }
 
+/// Planned spending over the budget; with [cart], the marked items are layered on top.
 class BudgetTrack extends StatelessWidget {
   const BudgetTrack({
     super.key,
     required this.planned,
-    required this.cart,
     required this.budget,
+    this.cart,
   });
-  final double planned, cart, budget;
+  final double planned, budget;
+  final double? cart;
   @override
-  Widget build(BuildContext context) => ClipRRect(
-    borderRadius: BorderRadius.circular(6),
-    child: SizedBox(
-      width: double.infinity,
-      height: 5,
-      child: Stack(
-        children: [
-          const Positioned.fill(child: ColoredBox(color: Colors.white12)),
-          TweenAnimationBuilder<double>(
-            tween: Tween(end: budget <= 0 ? 0 : (planned / budget).clamp(0, 1)),
-            duration: motionTime(context, 450),
-            curve: Curves.easeOutCubic,
-            builder: (_, value, _) => FractionallySizedBox(
-              widthFactor: value,
-              heightFactor: 1,
-              child: ColoredBox(
-                color: planned > budget
-                    ? const Color(0xFFE9AE88)
-                    : const Color(0xFF6E9C82),
+  Widget build(BuildContext context) {
+    final over = budget > 0 && planned > budget;
+    Widget bar(double value, Color color) => Positioned.fill(
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(end: budget <= 0 ? 0 : (value / budget).clamp(0, 1)),
+        duration: motionTime(context, 450),
+        curve: Curves.ease,
+        builder: (_, width, _) => FractionallySizedBox(
+          alignment: Alignment.centerLeft,
+          widthFactor: width,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(999),
+            ),
+          ),
+        ),
+      ),
+    );
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(999),
+      child: SizedBox(
+        height: 6,
+        child: Stack(
+          children: [
+            const Positioned.fill(child: ColoredBox(color: zinc200)),
+            bar(
+              planned,
+              cart == null
+                  ? (over ? danger : primary)
+                  : (over ? const Color(0xFFFAA0BF) : const Color(0xFF99C7FB)),
+            ),
+            if (cart != null) bar(cart!, primary),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GroupHeader extends StatelessWidget {
+  const _GroupHeader({required this.priority, required this.count});
+  final Priority priority;
+  final int count;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(20, 24, 20, 10),
+    child: Row(
+      children: [
+        Container(
+          constraints: const BoxConstraints(minHeight: 26),
+          padding: const EdgeInsets.fromLTRB(8, 2, 10, 2),
+          decoration: BoxDecoration(
+            border: Border.all(color: zinc200, width: 2),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: _priorityDots[priority],
+                  shape: BoxShape.circle,
+                ),
               ),
-            ),
+              const SizedBox(width: 6),
+              Text(
+                priority.label,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
           ),
-          TweenAnimationBuilder<double>(
-            tween: Tween(end: budget <= 0 ? 0 : (cart / budget).clamp(0, 1)),
-            duration: motionTime(context, 450),
-            curve: Curves.easeOutCubic,
-            builder: (_, value, _) => FractionallySizedBox(
-              widthFactor: value,
-              heightFactor: 1,
-              child: const ColoredBox(color: mint),
+        ),
+        const Spacer(),
+        Text(
+          priority == Priority.later
+              ? 'fora do total'
+              : '$count ${count == 1 ? 'item' : 'itens'}',
+          style: const TextStyle(fontSize: 12, color: muted),
+        ),
+      ],
+    ),
+  );
+}
+
+class _Group extends StatelessWidget {
+  const _Group({
+    required this.items,
+    required this.data,
+    required this.busy,
+    required this.onToggle,
+    required this.onEdit,
+  });
+  final List<ShoppingItem> items;
+  final AppData data;
+  final bool busy;
+  final Future<void> Function(ShoppingItem) onToggle;
+  final void Function(ShoppingItem) onEdit;
+  @override
+  Widget build(BuildContext context) => Container(
+    clipBehavior: Clip.antiAlias,
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      boxShadow: shadowMedium,
+    ),
+    child: Material(
+      type: MaterialType.transparency,
+      child: Column(
+        children: [
+          for (final (i, item) in items.indexed)
+            _ShoppingRow(
+              key: ValueKey(item.id),
+              item: item,
+              product: data.product(item.productId),
+              last: i == items.length - 1,
+              onToggle: busy ? null : () => onToggle(item),
+              onEdit: () => onEdit(item),
             ),
-          ),
         ],
       ),
     ),
@@ -278,298 +312,120 @@ class _ShoppingRow extends StatelessWidget {
     super.key,
     required this.item,
     required this.product,
-    required this.busy,
+    required this.last,
     required this.onToggle,
     required this.onEdit,
   });
   final ShoppingItem item;
   final Product? product;
-  final bool busy;
-  final VoidCallback onToggle;
-  final void Function(BuildContext) onEdit;
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(6, 0, 16, 0),
-    child: Row(
-      children: [
-        Semantics(
-          label: 'No carrinho: ${item.name}',
-          checked: item.checked,
-          child: Checkbox(
-            key: ValueKey('cart-${item.id}'),
-            value: item.checked,
-            onChanged: busy ? null : (_) => onToggle(),
-            shape: const CircleBorder(),
-          ),
-        ),
-        Expanded(
-          child: Builder(
-            builder: (anchor) => InkWell(
-              onTap: () => onEdit(anchor),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 17),
-                decoration: const BoxDecoration(
-                  border: Border(bottom: BorderSide(color: lineColor)),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          AnimatedDefaultTextStyle(
-                            duration: motionTime(context, 200),
-                            style: TextStyle(
-                              fontFamily: '.SF Pro Text',
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              color: item.checked ? muted : ink,
-                              decoration: item.checked
-                                  ? TextDecoration.lineThrough
-                                  : TextDecoration.none,
-                            ),
-                            child: Text(item.name),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '${item.quantity} ${item.quantity == 1 ? 'unidade' : 'unidades'}${product == null || product!.pack.isEmpty ? '' : ' · ${product!.pack}'}',
-                            style: const TextStyle(fontSize: 11, color: muted),
-                          ),
-                          if (item.expiry != null)
-                            Text(
-                              'Validade ${displayDate(item.expiry!)}',
-                              style: const TextStyle(
-                                fontSize: 10,
-                                color: muted,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      item.price == 0 ? 'Sem preço' : money(item.total),
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: item.checked || item.priority == Priority.later
-                            ? muted
-                            : ink,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
-class _CartPanel extends StatelessWidget {
-  const _CartPanel({
-    required this.data,
-    required this.expanded,
-    required this.busy,
-    required this.onToggle,
-    required this.onBudget,
-    required this.onCheckout,
-  });
-  final AppData data;
-  final bool expanded, busy;
-  final VoidCallback onToggle;
-  final void Function(BuildContext) onBudget;
-  final VoidCallback onCheckout;
+  final bool last;
+  final VoidCallback? onToggle;
+  final VoidCallback onEdit;
   @override
   Widget build(BuildContext context) {
-    final count = data.list.where((e) => e.checked).length;
-    final unknown = data.list.where((e) => e.checked && e.price == 0).length;
-    return Container(
-      decoration: BoxDecoration(
-        color: ink,
-        borderRadius: BorderRadius.circular(28),
-        boxShadow: [
-          BoxShadow(
-            color: ink.withValues(alpha: .13),
-            blurRadius: 20,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Semantics(
-              button: true,
-              expanded: expanded,
-              label: expanded ? 'Recolher carrinho' : 'Expandir carrinho',
-              child: InkWell(
-                onTap: onToggle,
-                borderRadius: BorderRadius.circular(28),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(18, 15, 16, 15),
+    final checked = item.checked, later = item.priority == Priority.later;
+    final details = [
+      '${item.quantity} ${item.quantity == 1 ? 'unidade' : 'unidades'}',
+      if (product != null && product!.pack.isNotEmpty) product!.pack,
+      if (item.price > 0) '${money(item.price)} cada',
+      if (item.expiry != null) 'validade ${displayDate(item.expiry!)}',
+    ].join(' · ');
+    return Semantics(
+      checked: checked,
+      label: 'No carrinho: ${item.name}',
+      onLongPressHint: 'Editar',
+      child: InkWell(
+        onTap: onToggle,
+        onLongPress: onEdit,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 0, 16, 0),
+          child: Row(
+            children: [
+              AnimatedContainer(
+                key: ValueKey('cart-${item.id}'),
+                duration: motionTime(context, 200),
+                width: 20,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: checked ? primary : Colors.transparent,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: checked ? primary : zinc300,
+                    width: 2,
+                  ),
+                ),
+                child: AnimatedOpacity(
+                  opacity: checked ? 1 : 0,
+                  duration: motionTime(context, 200),
+                  child: const Icon(
+                    Symbols.check,
+                    size: 15,
+                    weight: 600,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Container(
+                  constraints: const BoxConstraints(minHeight: 60),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        color: last ? Colors.transparent : zinc100,
+                      ),
+                    ),
+                  ),
                   child: Row(
                     children: [
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            AnimatedMoney(
-                              value: data.cart,
-                              style: const TextStyle(
-                                fontFamily: 'Georgia',
-                                fontSize: 26,
-                                color: paper,
-                                letterSpacing: -.7,
-                              ),
+                            AnimatedDefaultTextStyle(
+                              duration: motionTime(context, 200),
+                              style: DefaultTextStyle.of(context).style
+                                  .copyWith(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                    color: checked ? faint : fg,
+                                    decoration: checked
+                                        ? TextDecoration.lineThrough
+                                        : TextDecoration.none,
+                                    decorationColor: faint,
+                                  ),
+                              child: Text(item.name),
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 2),
                             Text(
-                              count == 0
-                                  ? 'Nada no carrinho ainda'
-                                  : '$count ${count == 1 ? 'item no carrinho' : 'itens no carrinho'}${unknown > 0 ? ' · estimativa parcial' : ''}',
+                              details,
                               style: const TextStyle(
-                                color: Color(0xFFB4C9BA),
-                                fontSize: 11,
+                                fontSize: 12,
+                                color: muted,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(width: 10),
-                      BumpOnChange(
-                        value: count,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 9,
-                          ),
-                          decoration: BoxDecoration(
-                            color: mint,
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(
-                                CupertinoIcons.cart,
-                                size: 19,
-                                color: ink,
-                              ),
-                              const SizedBox(width: 7),
-                              Text(
-                                '$count',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  color: ink,
-                                ),
-                              ),
-                            ],
-                          ),
+                      const SizedBox(width: 8),
+                      AnimatedDefaultTextStyle(
+                        duration: motionTime(context, 200),
+                        style: DefaultTextStyle.of(context).style.copyWith(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: checked || later ? faint : fg,
                         ),
-                      ),
-                      const SizedBox(width: 9),
-                      AnimatedRotation(
-                        turns: expanded ? .5 : 0,
-                        duration: motionTime(context, 280),
-                        child: const Icon(
-                          CupertinoIcons.chevron_up,
-                          size: 16,
-                          color: Color(0xFFB4C9BA),
+                        child: Text(
+                          item.price == 0 ? 'Sem preço' : money(item.total),
                         ),
                       ),
                     ],
                   ),
                 ),
               ),
-            ),
-            if (expanded)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (data.budget > 0) ...[
-                      BudgetTrack(
-                        planned: data.planned,
-                        cart: data.cart,
-                        budget: data.budget,
-                      ),
-                      const SizedBox(height: 13),
-                    ],
-                    Text(
-                      'Planejado: ${money(data.planned)} · no carrinho: ${money(data.cart)}',
-                      style: const TextStyle(
-                        color: Color(0xFFB4C9BA),
-                        fontSize: 11,
-                      ),
-                    ),
-                    const SizedBox(height: 7),
-                    Text(
-                      data.budget == 0
-                          ? 'Sem orçamento definido'
-                          : data.cart > data.budget
-                          ? '${money(data.cart - data.budget)} acima do orçamento no carrinho'
-                          : '${money(data.budget - data.cart)} disponíveis após o carrinho',
-                      style: const TextStyle(color: paper, fontSize: 12),
-                    ),
-                    if (unknown > 0)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 7),
-                        child: Text(
-                          '$unknown ${unknown == 1 ? 'item marcado sem preço' : 'itens marcados sem preço'}. Confira antes de guardar.',
-                          style: const TextStyle(
-                            color: Color(0xFFE9AE88),
-                            fontSize: 11,
-                          ),
-                        ),
-                      ),
-                    Builder(
-                      builder: (anchor) => TextButton(
-                        style: TextButton.styleFrom(
-                          foregroundColor: const Color(0xFFB4C9BA),
-                          padding: EdgeInsets.zero,
-                        ),
-                        onPressed: () => onBudget(anchor),
-                        child: const Text(
-                          'Ajustar orçamento',
-                          style: TextStyle(fontSize: 12),
-                        ),
-                      ),
-                    ),
-                    if (count > 0)
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton.icon(
-                          style: FilledButton.styleFrom(
-                            backgroundColor: mint,
-                            foregroundColor: ink,
-                            disabledBackgroundColor: mint.withValues(
-                              alpha: .55,
-                            ),
-                            disabledForegroundColor: ink.withValues(alpha: .6),
-                          ),
-                          onPressed: busy || count == 0 ? null : onCheckout,
-                          icon: const Icon(
-                            CupertinoIcons.checkmark_alt,
-                            size: 18,
-                          ),
-                          label: const Text('Concluir compra'),
-                        ),
-                      ),
-                    if (count == 0)
-                      const Text(
-                        'Marque os itens que comprou para guardar no estoque.',
-                        style: TextStyle(
-                          color: Color(0xFFB4C9BA),
-                          fontSize: 11,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );

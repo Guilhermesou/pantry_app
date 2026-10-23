@@ -38,9 +38,9 @@ Catálogo: [Open Food Facts](https://openfoodfacts.org), dados ODbL e imagens CC
 
 ## Experiência e movimento
 
-Paleta clara em creme, verde e tons de papel; títulos editoriais e ilustrações vetoriais de embalagens. Navegação principal: Hoje, Lista e Estoque. Histórico e Ajustes ficam no menu Mais. O botão Adicionar reúne os caminhos manual, scanner e cupom.
+Sistema visual no estilo HeroUI: fundo branco, azul `#006FEE` como cor primária, neutros em zinco, cartões com sombras em camadas, tipografia Inter e ícones Material Symbols Rounded (ambos incluídos no app, sem depender de internet). Navegação principal em pílula flutuante: Hoje, Lista e Estoque. Histórico, Notas e cupons e Ajustes ficam no menu Mais. O botão + reúne os caminhos manual, scanner e cupom.
 
-Painéis se expandem do elemento tocado, com interpolação da superfície, cantos e conteúdo. Fechar reverte o trajeto. Níveis de consumo animam a superfície do preenchimento. O sistema respeita “Reduzir Movimento”. Estados vazios, falta de internet e permissões negadas têm caminhos manuais. Testes de interface incluem iPhone compacto com texto ampliado.
+Produtos e formulários sobem como folhas; páginas do menu Mais entram pela direita. Níveis de consumo animam o preenchimento da ilustração da embalagem. O sistema respeita “Reduzir Movimento”. Estados vazios, falta de internet e permissões negadas têm caminhos manuais. Testes de interface incluem iPhone compacto com texto ampliado.
 
 ## Verificações
 
@@ -51,7 +51,7 @@ flutter build ios --simulator --no-codesign --config-only
 xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -jobs 2 ARCHS=arm64 ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO build
 ```
 
-Prévias reais renderizadas pelo Flutter: [Lista](docs/preview/02-lista.png), [Estoque](docs/preview/03-estoque.png), [Controle parcial](docs/preview/04-controle-parcial.png). A captura opcional usa fontes locais do macOS, sem copiá-las para o projeto:
+Prévias reais renderizadas pelo Flutter: [Lista](docs/preview/02-lista.png), [Estoque](docs/preview/03-estoque.png), [Produto](docs/preview/04-produto.png). A captura opcional usa as fontes incluídas no projeto:
 
 ```sh
 flutter test --dart-define=CAPTURE_UI=true test/preview_test.dart
@@ -81,19 +81,19 @@ O estoque mostra um aviso discreto e o filtro **Validades** para produtos vencid
 
 O formato local/backup passou à versão 3. Arquivos das versões 1 e 2 continuam aceitos; suas embalagens entram sem validade anotada. Lotes guardam quantidades fechadas e datas; cada aberto mantém uma referência opcional ao seu lote. A validação impede alocar mais unidades do que o saldo ou manter referências inexistentes.
 
-Prévias: [Avisos no estoque](docs/preview/07-avisos-validade.png) e [Lotes e validades](docs/preview/08-lotes-validade.png).
+Prévia: [Lotes e validades](docs/preview/08-lotes-validade.png).
 
 ## Versão 0.4 — Hoje, movimento e leitura rápida
 
 O novo design foi implementado em Flutter a partir do HTML de referência fornecido pelo usuário. O arquivo `support.js` é um runtime do protótipo web e não é executado ou incluído no aplicativo. O armazenamento e o formato de backup permanecem na versão 3.
 
-- **Hoje:** data real, pendências de reposição e validade, próxima compra e acesso rápido às embalagens abertas. Adicionar uma reposição recolhe o cartão com animação; conferir um vencimento abre o produto e mantém o aviso.
-- **Lista:** prioridades em grupos, uma marcação por item, edição pelo nome, estimativa de orçamento e carrinho recolhível. O resumo ocupa espaço próprio no layout e pode ser rolado quando expandido; não cobre os itens. Guardar uma compra mantém a confirmação e a gravação atômica.
-- **Estoque:** cartões por ambiente com preenchimento visual e região estável para fração, nome e informações. Busca, filtros, lotes, fotos e cadastro continuam disponíveis. Em telas estreitas ou com texto maior, a grade passa para uma coluna.
-- **Abertos agora:** tocar abre o ajuste rápido, sem consumir automaticamente. Os níveis continuam aproximados; a finalização permite desfazer preservando a validade do lote.
-- **Adicionar:** atalhos reais para lista, estoque, código de barras e cupom se expandem do botão +. O menu Mais reúne Histórico e Ajustes.
+- **Hoje:** data real, pendências de reposição e validade, próxima compra e embalagens abertas. “Pôr na lista” confirma em verde e recolhe o cartão. “Vi” marca o vencimento como conferido nesta sessão; o lote e o aviso no Estoque permanecem.
+- **Lista:** prioridades em grupos; tocar na linha marca o item, tocar e segurar edita. Com itens marcados, a barra “Guardar no estoque” aparece acima da navegação, com confirmação e gravação atômica.
+- **Estoque:** lista com busca, filtros, nível aproximado e validade; ou a visão experimental **Por lugar**, com geladeira, freezer e despensa desenhadas em prateleiras. Tocar abre o produto em uma folha.
+- **Abertos agora:** cada toque baixa o nível em ¼; no último quarto a embalagem é finalizada com “Desfazer”, preservando o lote. Tocar e segurar abre o ajuste fino.
+- **Adicionar e Mais:** o + abre atalhos para lista, estoque, código de barras e cupom. O menu Mais reúne Histórico, Notas e cupons (compras guardadas e cupons importados) e Ajustes.
 
-A especificação de movimento está em [DESIGN.md](DESIGN.md). Prévias: [Hoje](docs/preview/09-hoje.png), [Estoque](docs/preview/03-estoque.png), [Carrinho](docs/preview/10-carrinho.png), [Atalhos](docs/preview/11-atalhos.png) e [Ajuste rápido](docs/preview/12-ajuste-rapido.png).
+A especificação de movimento está em [DESIGN.md](DESIGN.md). Prévias: [Hoje](docs/preview/09-hoje.png), [Abertos agora](docs/preview/07-abertos-agora.png), [Carrinho](docs/preview/10-carrinho.png), [Por lugar](docs/preview/14-estoque-por-lugar.png), [Atalhos](docs/preview/11-atalhos.png), [Menu Mais](docs/preview/15-menu-mais.png), [Notas e cupons](docs/preview/17-notas-e-cupons.png), [Ajustes](docs/preview/18-ajustes.png), [Ajuste rápido](docs/preview/12-ajuste-rapido.png) e [Desfazer](docs/preview/19-desfazer.png).
 
 Captura opcional de quadros reais das transições:
 
@@ -101,6 +101,6 @@ Captura opcional de quadros reais das transições:
 flutter test --dart-define=CAPTURE_MOTION=true test/motion_preview_test.dart
 ```
 
-Para codificar os quadros em GIF, use Python com Pillow: `python tool/render_motion.py`. [Ver a prévia animada](docs/preview/13-motion.gif).
+Para codificar os quadros em GIF, use Python com Pillow: `python tool/render_motion.py`. Para incluir um ícone novo, adicione o nome em `tool/symbols.txt`, rode `tool/subset_symbols.sh` e declare a constante em `lib/symbols.dart`. [Ver a prévia animada](docs/preview/13-motion.gif).
 
 A gravação é uma sequência de quadros renderizados pelo Flutter em teste, não uma medição de desempenho em iPhone físico.

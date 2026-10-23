@@ -1,14 +1,17 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../design.dart';
 import '../main.dart';
 import '../models.dart';
+import '../motion.dart';
 import '../store.dart';
+import '../symbols.dart';
+import '../toast.dart';
+import 'editors.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key, required this.store});
@@ -19,13 +22,12 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   bool busy = false;
-  String? status;
   Future<void> export(BuildContext anchor) async {
-    final rect = originRect(anchor);
-    setState(() {
-      busy = true;
-      status = null;
-    });
+    final box = anchor.findRenderObject();
+    final rect = box is RenderBox && box.hasSize
+        ? box.localToGlobal(Offset.zero) & box.size
+        : null;
+    setState(() => busy = true);
     try {
       final snapshot = widget.store.data.copy();
       final payload = snapshot.toJson();
@@ -48,15 +50,17 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
       );
       if (mounted) {
-        setState(
-          () => status =
-              'O backup foi preparado. Para guardá-lo, escolha “Salvar em Arquivos” na folha de compartilhamento.',
+        showToast(
+          context,
+          'O backup foi preparado. Para guardá-lo, escolha “Salvar em Arquivos” na folha de compartilhamento.',
         );
       }
     } catch (_) {
       if (mounted) {
-        setState(
-          () => status = 'Não foi possível preparar o backup. Tente novamente.',
+        showToast(
+          context,
+          'Não foi possível preparar o backup. Tente novamente.',
+          error: true,
         );
       }
     } finally {
@@ -65,10 +69,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> restore() async {
-    setState(() {
-      busy = true;
-      status = null;
-    });
+    setState(() => busy = true);
     try {
       final picked = await FilePicker.pickFile(
         type: FileType.custom,
@@ -118,15 +119,14 @@ class _SettingsPageState extends State<SettingsPage> {
       }
       await widget.store.replace(replacement);
       if (mounted) {
-        setState(
-          () => status = 'Backup restaurado. Sua despensa está de volta.',
-        );
+        showToast(context, 'Backup restaurado. Sua despensa está de volta.');
       }
     } catch (_) {
       if (mounted) {
-        setState(
-          () => status =
-              'Não foi possível restaurar este arquivo. Confira se é um backup válido da Despensa. Seu estado anterior foi preservado.',
+        showToast(
+          context,
+          'Não foi possível restaurar este arquivo. Confira se é um backup válido da Despensa. Seu estado anterior foi preservado.',
+          error: true,
         );
       }
     } finally {
@@ -135,123 +135,121 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   @override
-  Widget build(BuildContext context) => PanelScaffold(
-    title: 'Sua despensa,\nsuas escolhas.',
-    child: ListView(
-      padding: const EdgeInsets.all(24),
-      children: [
-        Surface(
-          color: mint,
-          child: const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(CupertinoIcons.lock_shield, color: green, size: 28),
-              SizedBox(height: 14),
-              Text(
-                'Só neste aparelho.',
-                style: TextStyle(fontSize: 19, fontWeight: FontWeight.w600),
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: widget.store,
+    builder: (context, _) {
+      final data = widget.store.data;
+      const spinner = SizedBox(
+        width: 16,
+        height: 16,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      );
+      return PanelScaffold(
+        title: 'Sua despensa, suas escolhas.',
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 50),
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(4, 0, 4, 8),
+              child: SectionLabel('Compra'),
+            ),
+            GroupedList(
+              shadow: shadowSmall,
+              children: [
+                ListRow(
+                  title: 'Orçamento',
+                  value: data.budget == 0
+                      ? 'Sem orçamento'
+                      : money(data.budget),
+                  chevron: true,
+                  onTap: () =>
+                      showSheet(context, BudgetEditor(store: widget.store)),
+                ),
+              ],
+            ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(4, 24, 4, 8),
+              child: SectionLabel('Seus dados'),
+            ),
+            GroupedList(
+              shadow: shadowSmall,
+              children: [
+                Builder(
+                  builder: (anchor) => ListRow(
+                    title: 'Exportar backup',
+                    value: busy ? null : 'JSON com fotos',
+                    trailing: busy ? spinner : null,
+                    onTap: busy ? null : () => export(anchor),
+                  ),
+                ),
+                ListRow(
+                  title: 'Restaurar backup',
+                  value: busy ? null : 'até 50 MB',
+                  trailing: busy ? spinner : null,
+                  onTap: busy ? null : restore,
+                ),
+                ListRow(
+                  title: 'Descrições lembradas',
+                  value: '${data.receiptAliases.length}',
+                  chevron: true,
+                  onTap: busy || widget.store.busy
+                      ? null
+                      : () => pushPage(
+                          context,
+                          ReceiptAliasesPage(store: widget.store),
+                        ),
+                ),
+              ],
+            ),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(4, 10, 4, 0),
+              child: Text(
+                'Só sua. Sem conta. Salva neste aparelho. Exporte um backup antes de apagar o app ou trocar de iPhone.',
+                style: TextStyle(fontSize: 12, color: faint),
               ),
-              SizedBox(height: 8),
-              Text(
-                'Sem login ou sincronização. O estoque, a lista, as fotos e o histórico ficam salvos localmente. Exporte um backup antes de apagar o app ou trocar de iPhone.',
-                style: TextStyle(color: green, fontSize: 12),
+            ),
+            if (data.demo) ...[
+              const SizedBox(height: 24),
+              AppButton(
+                label: 'Apagar exemplos',
+                tone: ButtonTone.danger,
+                height: 48,
+                expand: true,
+                onPressed: busy
+                    ? null
+                    : () async {
+                        if (await confirm(
+                              context,
+                              'Começar com seus dados?',
+                              'Todos os dados deste modo de exemplo, incluindo alterações que você fez nele, serão removidos.',
+                              label: 'Começar do zero',
+                            ) &&
+                            context.mounted) {
+                          final ok = await perform(
+                            context,
+                            () =>
+                                widget.store.replace(AppData(onboarded: true)),
+                          );
+                          if (ok && context.mounted) Navigator.pop(context);
+                        }
+                      },
               ),
             ],
-          ),
-        ),
-        const SizedBox(height: 28),
-        const Eyebrow('UMA CÓPIA PARA GUARDAR'),
-        const SizedBox(height: 12),
-        Builder(
-          builder: (anchor) => FilledButton.icon(
-            onPressed: busy ? null : () => export(anchor),
-            icon: const Icon(CupertinoIcons.square_arrow_up, size: 19),
-            label: const Text('Exportar backup com fotos'),
-          ),
-        ),
-        const SizedBox(height: 10),
-        OutlinedButton.icon(
-          onPressed: busy ? null : restore,
-          icon: const Icon(CupertinoIcons.square_arrow_down, size: 19),
-          label: const Text('Restaurar backup'),
-        ),
-        if (busy)
-          const Padding(
-            padding: EdgeInsets.all(16),
-            child: Center(child: CircularProgressIndicator()),
-          ),
-        if (status != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 14),
-            child: Text(
-              status!,
-              style: const TextStyle(fontSize: 12, color: green),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(4, 28, 4, 8),
+              child: SectionLabel('Sobre esta versão'),
             ),
-          ),
-        const SizedBox(height: 28),
-        const Eyebrow('O APP APRENDE COM VOCÊ'),
-        const SizedBox(height: 12),
-        ListenableBuilder(
-          listenable: widget.store,
-          builder: (context, _) => Builder(
-            builder: (anchor) => OutlinedButton.icon(
-              onPressed: busy || widget.store.busy
-                  ? null
-                  : () => fluidPage(
-                      context,
-                      ReceiptAliasesPage(store: widget.store),
-                      origin: originRect(anchor),
-                    ),
-              icon: const Icon(CupertinoIcons.link, size: 19),
-              label: Text(
-                'Descrições lembradas (${widget.store.data.receiptAliases.length})',
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                'Despensa · 0.4.0\n\nAs transições acompanham a opção “Reduzir Movimento” dos Ajustes de Acessibilidade do iPhone.\n\nConsulta de alimentos: Open Food Facts (ODbL). As fotos do catálogo têm licença CC BY-SA. Cadastros externos são sugestões e precisam de conferência.\n\nA leitura de cupons usa Apple Vision no aparelho e exige revisão. A proteção contra repetição reconhece a mesma chave fiscal, quando legível, ou o mesmo texto normalizado. Leituras diferentes da mesma compra ainda podem exigir sua atenção.\n\nTipografia Inter (SIL OFL) e ícones Material Symbols (Apache 2.0).',
+                style: TextStyle(fontSize: 12, color: faint, height: 1.5),
               ),
             ),
-          ),
+          ],
         ),
-        const SizedBox(height: 10),
-        const Text(
-          'Vínculos que você confirmou nos cupons. Esquecer uma descrição não altera o estoque.',
-          style: TextStyle(color: muted, fontSize: 12),
-        ),
-        const SizedBox(height: 28),
-        const Eyebrow('MOVIMENTO COM CONFORTO'),
-        const SizedBox(height: 12),
-        const Text(
-          'As transições acompanham a opção “Reduzir Movimento” dos Ajustes de Acessibilidade do iPhone.',
-          style: TextStyle(color: muted, fontSize: 13),
-        ),
-        const SizedBox(height: 26),
-        const Eyebrow('SOBRE ESTA VERSÃO'),
-        const SizedBox(height: 12),
-        const Text(
-          'Despensa · 0.4.0\n\nConsulta de alimentos: Open Food Facts (ODbL). As fotos do catálogo têm licença CC BY-SA. Cadastros externos são sugestões e precisam de conferência.\n\nA leitura de cupons usa Apple Vision no aparelho e exige revisão. A proteção contra repetição reconhece a mesma chave fiscal, quando legível, ou o mesmo texto normalizado. Leituras diferentes da mesma compra ainda podem exigir sua atenção.',
-          style: TextStyle(fontSize: 12, color: muted),
-        ),
-        const SizedBox(height: 30),
-        if (widget.store.data.demo)
-          OutlinedButton(
-            onPressed: busy
-                ? null
-                : () async {
-                    if (await confirm(
-                          context,
-                          'Começar com seus dados?',
-                          'Todos os dados deste modo de exemplo, incluindo alterações que você fez nele, serão removidos.',
-                          label: 'Começar do zero',
-                        ) &&
-                        context.mounted) {
-                      final ok = await perform(
-                        context,
-                        () => widget.store.replace(AppData(onboarded: true)),
-                      );
-                      if (ok && context.mounted) Navigator.pop(context);
-                    }
-                  },
-            child: const Text('Apagar exemplos e começar do zero'),
-          ),
-      ],
-    ),
+      );
+    },
   );
 }
 
@@ -282,24 +280,23 @@ class _ReceiptAliasesPageState extends State<ReceiptAliasesPage> {
         title: 'O que já aprendemos.',
         subtitle: 'Descrições que você vinculou ao seu estoque.',
         child: ListView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 50),
           children: [
             const Text(
               'Uma mesma abreviação pode ser usada para produtos diferentes. Confira o vínculo em cada compra e corrija quando precisar.',
-              style: TextStyle(color: muted, fontSize: 12),
+              style: TextStyle(color: muted, fontSize: 13),
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 16),
             TextField(
               onChanged: (value) => setState(() => query = value),
               decoration: const InputDecoration(
                 hintText: 'Buscar descrição ou produto',
-                prefixIcon: Icon(CupertinoIcons.search, size: 19),
+                prefixIcon: Icon(Symbols.search, size: 20),
               ),
             ),
             const SizedBox(height: 18),
             if (entries.isEmpty)
               EmptyState(
-                icon: CupertinoIcons.link,
                 title: query.isEmpty
                     ? 'Uma vez já ajuda.'
                     : 'Nenhum vínculo encontrado.',
@@ -309,9 +306,10 @@ class _ReceiptAliasesPageState extends State<ReceiptAliasesPage> {
               ),
             for (final entry in entries)
               Padding(
-                padding: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.only(bottom: 10),
                 child: Surface(
-                  padding: const EdgeInsets.all(16),
+                  shadow: shadowSmall,
+                  padding: const EdgeInsets.fromLTRB(16, 12, 6, 12),
                   child: Row(
                     children: [
                       Expanded(
@@ -321,11 +319,11 @@ class _ReceiptAliasesPageState extends State<ReceiptAliasesPage> {
                             Text(
                               entry.key.toUpperCase(),
                               style: const TextStyle(
-                                fontSize: 11,
+                                fontSize: 12,
                                 color: muted,
                               ),
                             ),
-                            const SizedBox(height: 6),
+                            const SizedBox(height: 2),
                             Text(
                               data.product(entry.value)!.name,
                               style: const TextStyle(
@@ -348,37 +346,30 @@ class _ReceiptAliasesPageState extends State<ReceiptAliasesPage> {
                                   ),
                                 );
                                 if (ok && context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: const Text(
-                                        'Descrição esquecida. O estoque continua igual.',
-                                      ),
-                                      action: SnackBarAction(
-                                        label: 'Desfazer',
-                                        onPressed: () => perform(
-                                          context,
-                                          () => widget.store.change((d) {
-                                            if (d.product(entry.value) ==
-                                                    null ||
-                                                d.receiptAliases.containsKey(
-                                                  entry.key,
-                                                )) {
-                                              throw StateError(
-                                                'O vínculo mudou. Confira a associação na próxima compra.',
-                                              );
-                                            }
-                                            d.receiptAliases[entry.key] =
-                                                entry.value;
-                                          }),
-                                        ),
-                                      ),
+                                  showToast(
+                                    context,
+                                    'Descrição esquecida. O estoque continua igual.',
+                                    undo: () => perform(
+                                      context,
+                                      () => widget.store.change((d) {
+                                        if (d.product(entry.value) == null ||
+                                            d.receiptAliases.containsKey(
+                                              entry.key,
+                                            )) {
+                                          throw StateError(
+                                            'O vínculo mudou. Confira a associação na próxima compra.',
+                                          );
+                                        }
+                                        d.receiptAliases[entry.key] =
+                                            entry.value;
+                                      }),
                                     ),
                                   );
                                 }
                               },
                         icon: const Icon(
-                          CupertinoIcons.xmark_circle,
-                          color: muted,
+                          Symbols.cancel,
+                          color: faint,
                           size: 20,
                         ),
                       ),

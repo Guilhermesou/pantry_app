@@ -1,9 +1,11 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../design.dart';
+import '../illustration.dart';
 import '../models.dart';
 import '../motion.dart';
 import '../store.dart';
+import '../symbols.dart';
+import 'shopping.dart' show BudgetTrack;
 
 String todayLabel(DateTime date) {
   const days = [
@@ -15,22 +17,11 @@ String todayLabel(DateTime date) {
     'sábado',
     'domingo',
   ];
-  const months = [
-    'janeiro',
-    'fevereiro',
-    'março',
-    'abril',
-    'maio',
-    'junho',
-    'julho',
-    'agosto',
-    'setembro',
-    'outubro',
-    'novembro',
-    'dezembro',
-  ];
-  return '${days[date.weekday - 1]}, ${date.day} de ${months[date.month - 1]}';
+  return '${days[date.weekday - 1]}, ${date.day} de ${monthNames[date.month - 1]}';
 }
+
+String capitalized(String text) =>
+    text.isEmpty ? text : text[0].toUpperCase() + text.substring(1);
 
 String attentionHeadline(int count, bool empty) {
   if (empty) return 'Sua casa,\nno seu ritmo.';
@@ -40,290 +31,180 @@ String attentionHeadline(int count, bool empty) {
   return '${words[count] ?? count} coisas pedem atenção.';
 }
 
+/// Identifies an acknowledged expiry; a new nearest date asks again.
+String expiryKey(Product p) => '${p.id}@${dateOnly(p.nearestExpiry!)}';
+
 String _lowDetail(Product p) {
-  final closed = '${p.closed} ${p.closed == 1 ? 'fechado' : 'fechados'}';
   final opened = p.opened.isEmpty
       ? ''
-      : '${levelNames[(p.opened.first * 4).round()]} no ${p.opened.length > 1 ? '1º aberto' : 'aberto'}';
-  return '${[if (opened.isNotEmpty) opened, if (p.closed > 0 || opened.isEmpty) closed].join(' + ')} · mínimo ${p.minimum.toStringAsFixed(0)}';
+      : '${levelNames[(p.opened.first * 4).round()]} aberto · ';
+  return '$opened${p.closed} ${p.closed == 1 ? 'fechado' : 'fechados'} · mín. ${p.minimum.toStringAsFixed(0)}';
+}
+
+String _expiryDetail(Product p) {
+  final lot = p.activeLots.first;
+  return lot.closed == 0
+      ? '${p.location} · embalagem aberta do lote'
+      : '${p.location} · ${lot.closed} ${lot.closed == 1 ? 'fechado' : 'fechados'} no lote';
 }
 
 class TodayContent extends StatelessWidget {
   const TodayContent({
     super.key,
     required this.store,
+    required this.header,
+    required this.seen,
+    required this.onSeen,
     required this.onList,
     required this.onAdd,
     required this.onProduct,
-    required this.onLevel,
+    required this.onLevelDown,
+    required this.onLevelDetail,
     required this.onSuggestion,
   });
   final PantryStore store;
-  final VoidCallback onList;
-  final void Function(BuildContext) onAdd;
-  final void Function(BuildContext, Product) onProduct;
-  final void Function(BuildContext, Product, int) onLevel;
+  final Widget header;
+  final Set<String> seen;
+  final void Function(Product) onSeen, onProduct;
+  final VoidCallback onList, onAdd;
+  final void Function(Product, int) onLevelDown, onLevelDetail;
   final Future<void> Function(Product) onSuggestion;
   @override
   Widget build(BuildContext context) {
-    final data = store.data;
-    final low = data.products.where((p) => p.low).toList();
-    final due =
-        data.products
-            .where((p) => p.needsExpiryAttention(DateTime.now()))
-            .toList()
-          ..sort((a, b) => a.nearestExpiry!.compareTo(b.nearestExpiry!));
-    final pending =
-        low.where((p) => !data.list.any((e) => e.productId == p.id)).length +
-        due.length;
+    final data = store.data, now = DateTime.now();
+    bool inList(Product p) => data.list.any((e) => e.productId == p.id);
+    final attention = data.products
+        .where((p) => p.low || p.needsExpiryAttention(now))
+        .toList();
+    // A low product asks for replenishment; otherwise the card is about its expiry.
+    bool done(Product p) => p.low ? inList(p) : seen.contains(expiryKey(p));
+    final pending = attention.where((p) => !done(p)).length;
     final opened = [
       for (final p in data.products)
         for (var i = 0; i < p.opened.length; i++) (p, i),
     ];
+    final headline = attentionHeadline(pending, data.products.isEmpty);
     return ListView(
       key: const PageStorageKey('today-scroll'),
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 28),
+      padding: tabPadding(context),
       children: [
-        AnimatedSize(
-          duration: motionTime(context, 380),
-          alignment: Alignment.topLeft,
+        header,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 2, 20, 0),
           child: AnimatedSwitcher(
             duration: motionTime(context, 240),
+            layoutBuilder: (current, previous) => Stack(
+              alignment: Alignment.topLeft,
+              children: [...previous, ?current],
+            ),
             child: Align(
-              key: ValueKey(attentionHeadline(pending, data.products.isEmpty)),
+              key: ValueKey(headline),
               alignment: Alignment.centerLeft,
-              child: Editorial(
-                attentionHeadline(pending, data.products.isEmpty),
-              ),
+              child: Headline(headline),
             ),
           ),
         ),
-        const SizedBox(height: 24),
         if (data.products.isEmpty)
-          EmptyState(
-            icon: CupertinoIcons.cube_box,
-            title: 'Vamos conhecer sua casa.',
-            message:
-                'Cadastre o que você já tem.\nAs sugestões aparecem no seu ritmo.',
-            action: Builder(
-              builder: (anchor) => FilledButton(
-                onPressed: () => onAdd(anchor),
-                child: const Text('Adicionar meu primeiro produto'),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 22, 20, 0),
+            child: EmptyState(
+              title: 'Vamos conhecer sua casa.',
+              message:
+                  'Cadastre o que você já tem.\nAs sugestões aparecem no seu ritmo.',
+              action: AppButton(
+                label: 'Adicionar meu primeiro produto',
+                icon: Symbols.add,
+                glow: true,
+                onPressed: onAdd,
               ),
             ),
-          ),
-        for (final p in low)
-          AnimatedSize(
-            key: ValueKey('low-${p.id}'),
-            duration: motionTime(context, 450),
-            curve: Curves.easeInOutCubicEmphasized,
-            alignment: Alignment.topCenter,
-            child: data.list.any((e) => e.productId == p.id)
-                ? const SizedBox(width: double.infinity)
-                : Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _AttentionCard(
-                      product: p,
-                      tag: p.available == 0 ? 'ACABOU' : 'ACABANDO',
-                      detail: _lowDetail(p),
-                      icon: CupertinoIcons.arrow_down_right,
-                      actionLabel: 'Pôr na lista',
-                      actionIcon: CupertinoIcons.add,
-                      onAction: store.busy ? null : () => onSuggestion(p),
-                      onProduct: (anchor) => onProduct(anchor, p),
-                    ),
-                  ),
-          ),
-        for (final p in due)
+          )
+        else
           Padding(
-            key: ValueKey('expiry-${p.id}'),
-            padding: const EdgeInsets.only(bottom: 12),
-            child: _AttentionCard(
-              product: p,
-              tag: expiryLabel(p.nearestExpiry!, DateTime.now()).toUpperCase(),
-              detail: '${p.location} · ${displayDate(p.nearestExpiry!)}',
-              icon: CupertinoIcons.calendar,
-              actionLabel: 'Conferir',
-              actionIcon: CupertinoIcons.eye,
-              onAction: null,
-              onProduct: (anchor) => onProduct(anchor, p),
-              opensProduct: true,
-            ),
-          ),
-        if (pending == 0 && data.products.isNotEmpty)
-          const Padding(
-            padding: EdgeInsets.only(bottom: 22),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+            child: Column(
               children: [
-                Icon(CupertinoIcons.checkmark_circle, color: green, size: 19),
-                SizedBox(width: 9),
-                Expanded(
-                  child: Text(
-                    'Nada pendente por aqui. Você decide quando repor.',
-                    style: TextStyle(color: muted, fontSize: 13),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        const SizedBox(height: 6),
-        TouchSurface(
-          label: 'Abrir lista da próxima compra',
-          onTap: onList,
-          child: Surface(
-            color: ink,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Eyebrow('PRÓXIMA COMPRA', color: Color(0xFFB4C9BA)),
-                      const SizedBox(height: 16),
-                      AnimatedMoney(
-                        value: data.planned,
-                        style: const TextStyle(
-                          fontFamily: 'Georgia',
-                          fontSize: 31,
-                          letterSpacing: -1,
-                          color: paper,
-                        ),
-                      ),
-                      const SizedBox(height: 7),
-                      Text(
-                        data.budget == 0
-                            ? 'Sem orçamento definido'
-                            : data.planned > data.budget
-                            ? '${money(data.planned - data.budget)} acima do orçamento'
-                            : 'de ${money(data.budget)} · ${money(data.budget - data.planned)} de margem',
-                        style: const TextStyle(
-                          color: Color(0xFFB4C9BA),
-                          fontSize: 12,
-                        ),
-                      ),
-                      if (data.list.any(
-                        (e) => e.priority != Priority.later && e.price == 0,
-                      ))
-                        const Padding(
-                          padding: EdgeInsets.only(top: 6),
-                          child: Text(
-                            'Estimativa parcial · há itens sem preço',
-                            style: TextStyle(
-                              color: Color(0xFFB4C9BA),
-                              fontSize: 10,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 16),
-                BumpOnChange(
-                  value: data.list.length,
-                  child: Container(
-                    width: 58,
-                    padding: const EdgeInsets.symmetric(vertical: 11),
-                    decoration: BoxDecoration(
-                      color: mint,
-                      borderRadius: BorderRadius.circular(20),
+                for (final p in attention)
+                  Collapsible(
+                    key: ValueKey('attention-${p.id}-${p.low ? 'low' : 'exp'}'),
+                    collapsed: done(p),
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: p.low
+                          ? _lowCard(p, inList(p))
+                          : _expiryCard(p, done(p), now),
                     ),
-                    child: Column(
+                  ),
+                if (pending == 0)
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(0, 4, 0, 18),
+                    child: Row(
                       children: [
-                        Text(
-                          '${data.list.length}',
-                          style: const TextStyle(
-                            fontSize: 23,
-                            fontWeight: FontWeight.w600,
-                          ),
+                        Icon(
+                          Symbols.checkCircle,
+                          size: 20,
+                          fill: 1,
+                          color: success,
                         ),
-                        Text(
-                          data.list.length == 1 ? 'item' : 'itens',
-                          style: const TextStyle(color: green, fontSize: 10),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Nada mais pedindo atenção por hoje.',
+                            style: TextStyle(fontSize: 14, color: muted),
+                          ),
                         ),
                       ],
                     ),
                   ),
+              ],
+            ),
+          ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+          child: TouchSurface(
+            label: 'Abrir lista da próxima compra',
+            onTap: onList,
+            child: _NextPurchase(data: data),
+          ),
+        ),
+        if (opened.isNotEmpty) ...[
+          const Padding(
+            padding: EdgeInsets.fromLTRB(20, 28, 20, 10),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
+                  child: Text(
+                    'Abertos agora',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                Flexible(
+                  child: Text(
+                    'toque para baixar o nível',
+                    textAlign: TextAlign.end,
+                    style: TextStyle(fontSize: 12, color: muted),
+                  ),
                 ),
               ],
             ),
           ),
-        ),
-        if (opened.isNotEmpty) ...[
-          const SizedBox(height: 28),
-          const Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            spacing: 12,
-            runSpacing: 8,
-            children: [
-              Eyebrow('ABERTOS AGORA'),
-              Text(
-                'toque para ajustar',
-                style: TextStyle(color: muted, fontSize: 11),
-              ),
-            ],
-          ),
-          const SizedBox(height: 13),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
+            clipBehavior: Clip.none,
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 for (final (p, i) in opened)
                   Padding(
                     padding: const EdgeInsets.only(right: 12),
-                    child: Builder(
-                      builder: (anchor) => TouchSurface(
-                        key: ValueKey('jar-${p.id}-$i'),
-                        onTap: store.busy ? null : () => onLevel(anchor, p, i),
-                        label: 'Ajustar ${p.name}, embalagem ${i + 1}',
-                        child: Container(
-                          width: 112,
-                          padding: const EdgeInsets.fromLTRB(9, 14, 9, 13),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(25),
-                          ),
-                          child: Column(
-                            children: [
-                              LiquidLevel(
-                                key: ValueKey('${p.id}-$i'),
-                                level: p.opened[i],
-                                size: 64,
-                              ),
-                              const SizedBox(height: 10),
-                              Text(
-                                p.name,
-                                textAlign: TextAlign.center,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                levelNames[(p.opened[i] * 4).round()],
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  fontSize: 10,
-                                  color: muted,
-                                ),
-                              ),
-                              if (p.opened.length > 1)
-                                Text(
-                                  'Aberta ${i + 1}',
-                                  style: const TextStyle(
-                                    fontSize: 9,
-                                    color: muted,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ),
+                    child: _OpenedJar(
+                      key: ValueKey('jar-${p.id}-$i'),
+                      product: p,
+                      level: p.opened[i],
+                      onTap: store.busy ? null : () => onLevelDown(p, i),
+                      onLongPress: () => onLevelDetail(p, i),
                     ),
                   ),
               ],
@@ -333,99 +214,275 @@ class TodayContent extends StatelessWidget {
       ],
     );
   }
+
+  Widget _lowCard(Product p, bool done) {
+    final out = p.available == 0;
+    return _AttentionCard(
+      product: p,
+      detail: _lowDetail(p),
+      tag: Tag(
+        done
+            ? 'Na lista'
+            : out
+            ? 'Acabou'
+            : 'Acabando',
+        icon: done ? Symbols.check : Symbols.trendingDown,
+        background: done
+            ? successSoft
+            : out
+            ? dangerSoft
+            : warningSoft,
+        foreground: done
+            ? successInk
+            : out
+            ? dangerInk
+            : warningInk,
+      ),
+      action: AppButton(
+        label: 'Pôr na lista',
+        icon: done ? Symbols.check : Symbols.add,
+        tone: done ? ButtonTone.success : ButtonTone.solid,
+        height: 32,
+        onPressed: done
+            ? () {}
+            : store.busy
+            ? null
+            : () => onSuggestion(p),
+      ),
+      onOpen: () => onProduct(p),
+    );
+  }
+
+  Widget _expiryCard(Product p, bool done, DateTime now) {
+    final expired = daysUntil(p.nearestExpiry!, now) < 0;
+    return _AttentionCard(
+      product: p,
+      detail: _expiryDetail(p),
+      tag: Tag(
+        done ? 'Conferido' : expiryLabel(p.nearestExpiry!, now),
+        icon: done ? Symbols.check : Symbols.event,
+        background: done
+            ? successSoft
+            : expired
+            ? dangerSoft
+            : warningSoft,
+        foreground: done
+            ? successInk
+            : expired
+            ? dangerInk
+            : warningInk,
+      ),
+      action: AppButton(
+        label: 'Vi',
+        icon: done ? Symbols.check : Symbols.visibility,
+        tone: done ? ButtonTone.success : ButtonTone.soft,
+        height: 32,
+        onPressed: done ? () {} : () => onSeen(p),
+      ),
+      onOpen: () => onProduct(p),
+    );
+  }
 }
 
 class _AttentionCard extends StatelessWidget {
   const _AttentionCard({
     required this.product,
-    required this.tag,
     required this.detail,
-    required this.icon,
-    required this.actionLabel,
-    required this.actionIcon,
-    required this.onAction,
-    required this.onProduct,
-    this.opensProduct = false,
+    required this.tag,
+    required this.action,
+    required this.onOpen,
   });
   final Product product;
-  final String tag, detail, actionLabel;
-  final IconData icon, actionIcon;
-  final VoidCallback? onAction;
-  final void Function(BuildContext) onProduct;
-  final bool opensProduct;
+  final String detail;
+  final Widget tag, action;
+  final VoidCallback onOpen;
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       final compact =
           MediaQuery.textScalerOf(context).scale(1) > 1.2 ||
           constraints.maxWidth < 310;
-      final information = Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, color: orange, size: 14),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    tag,
-                    style: const TextStyle(
-                      color: orange,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.5,
+      return TouchSurface(
+        onTap: onOpen,
+        label: 'Abrir ${product.name}',
+        child: Surface(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Row(
+                children: [
+                  ProductArt(product: product),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          product.name,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          detail,
+                          maxLines: compact ? 2 : 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 12, color: muted),
+                        ),
+                        const SizedBox(height: 6),
+                        tag,
+                      ],
                     ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 5),
-            Text(
-              product.name,
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-            ),
-            const SizedBox(height: 4),
-            Text(detail, style: const TextStyle(color: muted, fontSize: 11)),
-          ],
-        ),
-      );
-      Widget action(BuildContext anchor) => FilledButton.icon(
-        style: FilledButton.styleFrom(
-          minimumSize: const Size(44, 44),
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          shape: const StadiumBorder(),
-        ),
-        onPressed: opensProduct ? () => onProduct(anchor) : onAction,
-        icon: Icon(actionIcon, size: 15),
-        label: Text(actionLabel, style: const TextStyle(fontSize: 12)),
-      );
-      return Builder(
-        builder: (anchor) => TouchSurface(
-          onTap: () => onProduct(anchor),
-          child: Surface(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Row(
-                  children: [
-                    ProductArt(product: product, size: compact ? 48 : 54),
-                    const SizedBox(width: 12),
-                    information,
-                    if (!compact) ...[const SizedBox(width: 8), action(anchor)],
-                  ],
-                ),
-                if (compact)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 10),
-                    child: action(anchor),
-                  ),
-              ],
-            ),
+                  if (!compact) ...[const SizedBox(width: 12), action],
+                ],
+              ),
+              if (compact)
+                Padding(padding: const EdgeInsets.only(top: 10), child: action),
+            ],
           ),
         ),
       );
     },
   );
+}
+
+class _NextPurchase extends StatelessWidget {
+  const _NextPurchase({required this.data});
+  final AppData data;
+  @override
+  Widget build(BuildContext context) {
+    final count = data.list.length;
+    final over = data.budget > 0 && data.planned > data.budget;
+    final partial = data.list.any(
+      (e) => e.priority != Priority.later && e.price == 0,
+    );
+    return Surface(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Próxima compra',
+                  style: TextStyle(fontSize: 14, color: muted),
+                ),
+              ),
+              BumpOnChange(
+                value: count,
+                child: Tag(
+                  '$count ${count == 1 ? 'item' : 'itens'}',
+                  background: primarySoft,
+                  foreground: primaryInk,
+                  size: 12,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          AnimatedMoney(
+            value: data.planned,
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -.6,
+            ),
+          ),
+          const SizedBox(height: 12),
+          BudgetTrack(planned: data.planned, budget: data.budget),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  data.budget == 0
+                      ? 'Sem orçamento definido'
+                      : 'de ${money(data.budget)}',
+                  style: const TextStyle(fontSize: 12, color: muted),
+                ),
+              ),
+              if (data.budget > 0) ...[
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    over
+                        ? '${money(data.planned - data.budget)} acima'
+                        : '${money(data.budget - data.planned)} de margem',
+                    textAlign: TextAlign.end,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: over ? dangerInk : muted,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          if (partial)
+            const Padding(
+              padding: EdgeInsets.only(top: 4),
+              child: Text(
+                'Estimativa parcial · há itens sem preço',
+                style: TextStyle(fontSize: 11, color: faint),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OpenedJar extends StatelessWidget {
+  const _OpenedJar({
+    super.key,
+    required this.product,
+    required this.level,
+    required this.onTap,
+    required this.onLongPress,
+  });
+  final Product product;
+  final double level;
+  final VoidCallback? onTap, onLongPress;
+  @override
+  Widget build(BuildContext context) {
+    final name = levelNames[(level * 4).round()];
+    return TouchSurface(
+      onTap: onTap,
+      onLongPress: onLongPress,
+      label:
+          '${product.name}, $name. Toque para baixar um quarto; toque e segure para ajustar.',
+      child: Container(
+        width: 104,
+        padding: const EdgeInsets.fromLTRB(8, 14, 8, 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: shadowSmall,
+        ),
+        child: Column(
+          children: [
+            PackageIllustration(product: product, level: level),
+            const SizedBox(height: 10),
+            Text(
+              product.name.split(' ').first,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+            Text(
+              '$name · ${(level * 100).round()}%',
+              maxLines: 2,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 11, color: muted),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

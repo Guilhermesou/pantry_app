@@ -1,9 +1,10 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import '../design.dart';
 import '../main.dart';
 import '../models.dart';
+import '../motion.dart';
 import '../store.dart';
+import '../symbols.dart';
 import 'editors.dart' show Counter;
 
 class ExpiryField extends StatelessWidget {
@@ -18,14 +19,18 @@ class ExpiryField extends StatelessWidget {
   final bool enabled;
   @override
   Widget build(BuildContext context) => Surface(
-    padding: const EdgeInsets.fromLTRB(14, 4, 4, 4),
+    color: zinc100,
+    padding: const EdgeInsets.fromLTRB(14, 2, 4, 2),
     child: Row(
       children: [
-        const Icon(CupertinoIcons.calendar, color: green, size: 19),
-        const SizedBox(width: 10),
+        const Icon(Symbols.event, color: muted, size: 19),
+        const SizedBox(width: 6),
         Expanded(
           child: TextButton(
-            style: TextButton.styleFrom(alignment: Alignment.centerLeft),
+            style: TextButton.styleFrom(
+              alignment: Alignment.centerLeft,
+              foregroundColor: value == null ? muted : fg,
+            ),
             onPressed: !enabled
                 ? null
                 : () async {
@@ -46,7 +51,7 @@ class ExpiryField extends StatelessWidget {
               value == null
                   ? 'Anotar validade (opcional)'
                   : 'Validade: ${displayDate(value!)}',
-              style: const TextStyle(fontSize: 12),
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
             ),
           ),
         ),
@@ -54,11 +59,7 @@ class ExpiryField extends StatelessWidget {
           IconButton(
             tooltip: 'Remover validade',
             onPressed: enabled ? () => onChanged(null) : null,
-            icon: const Icon(
-              CupertinoIcons.xmark_circle,
-              size: 20,
-              color: muted,
-            ),
+            icon: const Icon(Symbols.cancel, size: 20, color: faint),
           ),
       ],
     ),
@@ -78,24 +79,20 @@ Future<void> choosePackage(
   }
   final choice = await showModalBottomSheet<String>(
     context: context,
-    backgroundColor: paper,
     isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-    ),
     builder: (context) => SafeArea(
       child: ConstrainedBox(
         constraints: BoxConstraints(
           maxHeight: MediaQuery.sizeOf(context).height * .75,
         ),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Editorial('Qual você abriu?', size: 29),
-              const SizedBox(height: 12),
+              const Headline('Qual você abriu?', size: 20),
+              const SizedBox(height: 6),
               const Text(
                 'Confira a validade na embalagem para manter o lote certo.',
                 style: TextStyle(color: muted, fontSize: 13),
@@ -104,7 +101,7 @@ Future<void> choosePackage(
               for (final lot in lots)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: const Icon(CupertinoIcons.calendar, color: green),
+                  leading: const IconTile(Symbols.event),
                   title: Text(displayDate(lot.expiry)),
                   subtitle: Text(
                     '${lot.closed} ${lot.closed == 1 ? 'fechada' : 'fechadas'} · ${expiryLabel(lot.expiry, DateTime.now())}',
@@ -114,7 +111,11 @@ Future<void> choosePackage(
               if (p.undatedClosed > 0)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: const Icon(CupertinoIcons.cube_box),
+                  leading: const IconTile(
+                    Symbols.package2,
+                    background: zinc100,
+                    foreground: muted,
+                  ),
                   title: const Text('Sem validade anotada'),
                   subtitle: Text(
                     '${p.undatedClosed} ${p.undatedClosed == 1 ? 'fechada' : 'fechadas'}',
@@ -154,7 +155,7 @@ class LotsPage extends StatelessWidget {
         title: 'Cada lote, seu tempo.',
         subtitle: p.name,
         child: ListView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 50),
           children: [
             const Text(
               'Validades são opcionais. Anotar uma data aqui organiza o saldo existente; não adiciona outra compra.',
@@ -163,56 +164,51 @@ class LotsPage extends StatelessWidget {
             const SizedBox(height: 18),
             if (p.undatedClosed > 0)
               Surface(
-                color: mint,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       '${p.undatedClosed} ${p.undatedClosed == 1 ? 'fechada' : 'fechadas'} sem data',
                       style: const TextStyle(
-                        fontSize: 17,
+                        fontSize: 16,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(height: 6),
                     const Text(
                       'Você pode anotar a validade de todas ou só de algumas.',
-                      style: TextStyle(color: green, fontSize: 12),
+                      style: TextStyle(color: muted, fontSize: 13),
                     ),
-                    const SizedBox(height: 10),
-                    Builder(
-                      builder: (anchor) => TextButton.icon(
-                        onPressed: store.busy
-                            ? null
-                            : () => fluidPage(
-                                context,
-                                LotEditor(store: store, id: id),
-                                origin: originRect(anchor),
-                              ),
-                        icon: const Icon(CupertinoIcons.add, size: 17),
-                        label: const Text('Anotar validade'),
-                      ),
+                    const SizedBox(height: 14),
+                    AppButton(
+                      label: 'Anotar validade',
+                      icon: Symbols.add,
+                      tone: ButtonTone.soft,
+                      height: 40,
+                      onPressed: store.busy
+                          ? null
+                          : () => showSheet(
+                              context,
+                              LotEditor(store: store, id: id),
+                            ),
                     ),
                   ],
                 ),
               ),
             if (p.activeLots.isEmpty && p.undatedClosed == 0)
               const EmptyState(
-                icon: CupertinoIcons.calendar,
                 title: 'Sem lotes com data.',
                 message:
                     'Nas embalagens abertas, anote a validade\npelo controle de nível do produto.',
               ),
             for (final lot in p.activeLots)
               Padding(
-                padding: const EdgeInsets.only(top: 14),
+                padding: const EdgeInsets.only(top: 12),
                 child: Builder(
-                  builder: (anchor) => InkWell(
-                    borderRadius: BorderRadius.circular(26),
-                    onTap: () => fluidPage(
+                  builder: (_) => TouchSurface(
+                    onTap: () => showSheet(
                       context,
                       LotEditor(store: store, id: id, lotId: lot.id),
-                      origin: originRect(anchor),
                     ),
                     child: Surface(
                       child: Column(
@@ -221,8 +217,8 @@ class LotsPage extends StatelessWidget {
                           Row(
                             children: [
                               const Icon(
-                                CupertinoIcons.calendar,
-                                color: green,
+                                Symbols.event,
+                                color: primary,
                                 size: 20,
                               ),
                               const SizedBox(width: 10),
@@ -230,29 +226,36 @@ class LotsPage extends StatelessWidget {
                                 child: Text(
                                   displayDate(lot.expiry),
                                   style: const TextStyle(
-                                    fontSize: 20,
+                                    fontSize: 18,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
                               ),
                               const Icon(
-                                CupertinoIcons.chevron_right,
-                                size: 14,
-                                color: muted,
+                                Symbols.chevronRight,
+                                size: 20,
+                                color: faint,
                               ),
                             ],
                           ),
-                          const SizedBox(height: 9),
-                          Text(
+                          const SizedBox(height: 8),
+                          Tag(
                             expiryLabel(lot.expiry, DateTime.now()),
-                            style: TextStyle(
-                              color: daysUntil(lot.expiry, DateTime.now()) <= 7
-                                  ? orange
-                                  : green,
-                              fontSize: 12,
-                            ),
+                            icon: Symbols.event,
+                            background:
+                                daysUntil(lot.expiry, DateTime.now()) < 0
+                                ? dangerSoft
+                                : daysUntil(lot.expiry, DateTime.now()) <= 7
+                                ? warningSoft
+                                : successSoft,
+                            foreground:
+                                daysUntil(lot.expiry, DateTime.now()) < 0
+                                ? dangerInk
+                                : daysUntil(lot.expiry, DateTime.now()) <= 7
+                                ? warningInk
+                                : successInk,
                           ),
-                          const SizedBox(height: 9),
+                          const SizedBox(height: 8),
                           Text(
                             '${lot.closed} ${lot.closed == 1 ? 'fechada' : 'fechadas'} · ${p.openedLotIds.where((ref) => ref == lot.id).length} ${p.openedLotIds.where((ref) => ref == lot.id).length == 1 ? 'aberta' : 'abertas'}',
                             style: const TextStyle(color: muted, fontSize: 12),
@@ -266,7 +269,7 @@ class LotsPage extends StatelessWidget {
             const SizedBox(height: 22),
             const Text(
               'Os avisos aparecem no app. Embalagens vencidas continuam no saldo até você registrar o consumo, o descarte ou uma correção.',
-              style: TextStyle(color: muted, fontSize: 11),
+              style: TextStyle(color: faint, fontSize: 12),
             ),
           ],
         ),
@@ -296,7 +299,7 @@ class _LotEditorState extends State<LotEditor> {
   late DateTime? expiry = lot?.expiry;
   bool saving = false;
   @override
-  Widget build(BuildContext context) => PanelScaffold(
+  Widget build(BuildContext context) => SheetScaffold(
     title: 'Anote no seu ritmo.',
     subtitle: product.name,
     footer: FilledButton(
@@ -336,7 +339,7 @@ class _LotEditorState extends State<LotEditor> {
       ),
     ),
     child: ListView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
       children: [
         Counter(
           label: 'Fechadas neste lote',
@@ -391,6 +394,7 @@ class _LotEditorState extends State<LotEditor> {
                       }
                     }
                   },
+            style: TextButton.styleFrom(foregroundColor: zinc700),
             child: const Text('Remover data sem alterar saldo'),
           ),
           TextButton(
@@ -419,10 +423,8 @@ class _LotEditorState extends State<LotEditor> {
                       }
                     }
                   },
-            child: const Text(
-              'Descartar este lote',
-              style: TextStyle(color: orange),
-            ),
+            style: TextButton.styleFrom(foregroundColor: dangerInk),
+            child: const Text('Descartar este lote'),
           ),
         ],
       ],

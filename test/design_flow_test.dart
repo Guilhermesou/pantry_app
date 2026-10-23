@@ -58,7 +58,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
   testWidgets(
-    'checking an expiry does not dismiss the warning or discard the lot',
+    'acknowledging an expiry folds the card without discarding the lot',
     (tester) async {
       final expiry = calendarDate(DateTime.now()).add(const Duration(days: 1));
       final store = await launch(
@@ -75,33 +75,38 @@ void main() {
           ],
         ),
       );
-      await tester.tap(find.text('Conferir'));
+      expect(find.text('Vence amanhã'), findsOneWidget);
+      await tester.tap(find.text('Vi'));
+      await tester.pumpAndSettle();
+      expect(find.text('Vi'), findsNothing);
+      expect(find.text('Tudo no seu lugar.'), findsOneWidget);
+      expect(store.data.product('yog')!.closed, 2);
+      expect(store.data.product('yog')!.activeLots.single.expiry, expiry);
+      await tester.tap(find.byKey(const ValueKey('nav-2')));
+      await tester.pumpAndSettle();
+      expect(find.text('Vence amanhã'), findsOneWidget);
+      await tester.tap(find.text('Iogurte'));
       await tester.pumpAndSettle();
       expect(find.text('Lotes e validades'), findsOneWidget);
       await tester.tap(find.byTooltip('Fechar'));
       await tester.pumpAndSettle();
-      expect(find.text('Conferir'), findsOneWidget);
-      expect(store.data.product('yog')!.closed, 2);
-      expect(store.data.product('yog')!.activeLots.single.expiry, expiry);
+      expect(find.text('Lotes e validades'), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );
   testWidgets(
-    'cart expands without covering items and checkout receives only marked purchases',
+    'checkout bar appears with marked items and stores only those purchases',
     (tester) async {
       final store = await launch(tester, AppData.example());
-      await tester.tap(find.text('Lista'));
+      await tester.tap(find.byKey(const ValueKey('nav-1')));
       await tester.pumpAndSettle();
-      await tester.drag(find.byType(ListView).first, const Offset(0, -240));
-      await tester.pumpAndSettle();
+      expect(find.text('Guardar no estoque · 1 item'), findsNothing);
       await tester.tap(find.byKey(const ValueKey('cart-l1')));
       await tester.pumpAndSettle();
       expect(store.data.product('milk')!.closed, 1);
       expect(store.data.list.first.checked, true);
-      await tester.tap(find.bySemanticsLabel(RegExp('Expandir carrinho')));
-      await tester.pumpAndSettle();
-      expect(find.text('Concluir compra'), findsOneWidget);
-      await tester.tap(find.text('Concluir compra'));
+      expect(find.text('Guardar no estoque · 1 item'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('checkout-bar')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Guardar no estoque'));
       await tester.pumpAndSettle();
@@ -112,7 +117,7 @@ void main() {
     },
   );
   testWidgets(
-    'quick level opens without consuming, adjusts and can undo a finish with its lot',
+    'a tap lowers an opened package; the sheet adjusts and undoes a finish with its lot',
     (tester) async {
       final expiry = calendarDate(DateTime.now()).add(const Duration(days: 30));
       final store = await launch(
@@ -133,16 +138,19 @@ void main() {
       );
       await tester.tap(find.byKey(const ValueKey('jar-rice-0')));
       await tester.pumpAndSettle();
-      expect(store.data.product('rice')!.opened, [.5]);
-      await tester.tap(find.widgetWithText(ChoiceChip, '¼'));
+      expect(store.data.product('rice')!.opened, [.25]);
+      await tester.longPress(find.byKey(const ValueKey('jar-rice-0')));
       await tester.pumpAndSettle();
       expect(store.data.product('rice')!.opened, [.25]);
+      await tester.tap(find.byKey(const ValueKey('quick-level-3')));
+      await tester.pumpAndSettle();
+      expect(store.data.product('rice')!.opened, [.75]);
       await tester.tap(find.text('Acabou esta embalagem'));
       await tester.pumpAndSettle();
       expect(store.data.product('rice')!.opened, isEmpty);
       await tester.tap(find.text('Desfazer'));
       await tester.pumpAndSettle();
-      expect(store.data.product('rice')!.opened, [.25]);
+      expect(store.data.product('rice')!.opened, [.75]);
       expect(store.data.product('rice')!.openedLotIds, ['lot']);
       expect(tester.takeException(), isNull);
     },
@@ -161,7 +169,7 @@ void main() {
       expect(store.data.list, isEmpty);
       await tester.tap(find.byTooltip('Adicionar'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Ler código de barras'));
+      await tester.tap(find.text('Código de barras'));
       await tester.pumpAndSettle();
       expect(find.text('Buscar produto'), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -170,25 +178,37 @@ void main() {
   testWidgets('large text preserves stock filters and compact cart access', (
     tester,
   ) async {
-    await launch(
+    final store = await launch(
       tester,
       AppData.example(),
       size: const Size(375, 667),
       scale: 1.4,
     );
-    await tester.tap(find.text('Estoque'));
+    await tester.tap(find.byKey(const ValueKey('nav-2')));
     await tester.pumpAndSettle();
     await tester.enterText(
       find.byKey(const ValueKey('stock-search')),
       'Sabonete',
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Lista'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.bySemanticsLabel(RegExp('Expandir carrinho')));
+    await tester.tap(find.byKey(const ValueKey('stock-view-place')));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
-    await tester.tap(find.text('Estoque'));
+    await tester.tap(find.byKey(const ValueKey('stock-view-list')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('nav-1')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const ValueKey('cart-l1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('cart-l1')));
+    await tester.pumpAndSettle();
+    expect(store.data.list.first.checked, true);
+    expect(
+      find.byKey(const ValueKey('checkout-bar')).hitTestable(),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.byKey(const ValueKey('nav-2')));
     await tester.pumpAndSettle();
     expect(
       tester
@@ -230,11 +250,9 @@ void main() {
       final store = PantryStore(MemoryRepository()..fail = true, data);
       await tester.pumpWidget(PantryApp(store: store));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Lista'));
+      await tester.tap(find.byKey(const ValueKey('nav-1')));
       await tester.pumpAndSettle();
-      await tester.tap(find.bySemanticsLabel(RegExp('Expandir carrinho')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Concluir compra'));
+      await tester.tap(find.byKey(const ValueKey('checkout-bar')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Guardar no estoque'));
       await tester.pumpAndSettle();

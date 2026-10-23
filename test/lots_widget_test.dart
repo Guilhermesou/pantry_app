@@ -5,7 +5,8 @@ import 'package:despensa/design.dart';
 import 'package:despensa/screens/home.dart';
 import 'package:despensa/models.dart';
 import 'package:despensa/store.dart';
-import 'package:despensa/screens/editors.dart';
+import 'package:despensa/toast.dart';
+import 'package:despensa/screens/product.dart';
 import 'package:despensa/screens/lots.dart';
 import 'store_test.dart' show MemoryRepository;
 
@@ -27,6 +28,7 @@ void main() {
         locale: const Locale('pt', 'BR'),
         supportedLocales: const [Locale('pt', 'BR')],
         localizationsDelegates: GlobalMaterialLocalizations.delegates,
+        builder: (context, child) => ToastHost(child: child!),
         home: page,
       ),
     );
@@ -121,9 +123,11 @@ void main() {
       AppData(onboarded: true, products: [expired, fresh]),
     );
     await launch(tester, PantryHome(store: store));
-    await tester.tap(find.text('Estoque'));
+    await tester.tap(find.byKey(const ValueKey('nav-2')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Conferir'));
+    await tester.ensureVisible(find.text('Validades'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Validades'));
     await tester.pumpAndSettle();
     expect(store.data.product('old')!.closed, 1);
     expect(find.text('Arroz novo'), findsNothing);

@@ -1,0 +1,52 @@
+import 'package:flutter/widgets.dart';
+
+/// Material Symbols Rounded, subset by tool/subset_symbols.sh to the names in tool/symbols.txt.
+abstract final class Symbols {
+  static const add = IconData(0xe145, fontFamily: _family);
+  static const cancel = IconData(0xe888, fontFamily: _family);
+  static const centerFocusWeak = IconData(0xe3b5, fontFamily: _family);
+  static const check = IconData(0xe668, fontFamily: _family);
+  static const checkCircle = IconData(0xf0be, fontFamily: _family);
+  static const checklist = IconData(0xe6b1, fontFamily: _family);
+  static const chevronLeft = IconData(0xe5cb, fontFamily: _family);
+  static const chevronRight = IconData(0xe5cc, fontFamily: _family);
+  static const cleaningServices = IconData(0xf0ff, fontFamily: _family);
+  static const close = IconData(0xe5cd, fontFamily: _family);
+  static const contentPaste = IconData(0xe14f, fontFamily: _family);
+  static const delete = IconData(0xe92e, fontFamily: _family);
+  static const documentScanner = IconData(0xe5fa, fontFamily: _family);
+  static const download = IconData(0xf090, fontFamily: _family);
+  static const eco = IconData(0xea35, fontFamily: _family);
+  static const edit = IconData(0xf097, fontFamily: _family);
+  static const editNote = IconData(0xe745, fontFamily: _family);
+  static const encrypted = IconData(0xe593, fontFamily: _family);
+  static const error = IconData(0xf8b6, fontFamily: _family);
+  static const event = IconData(0xe878, fontFamily: _family);
+  static const expandMore = IconData(0xe5cf, fontFamily: _family);
+  static const grocery = IconData(0xef97, fontFamily: _family);
+  static const history = IconData(0xe8b3, fontFamily: _family);
+  static const image = IconData(0xe3f4, fontFamily: _family);
+  static const iosShare = IconData(0xe6b8, fontFamily: _family);
+  static const kitchen = IconData(0xeb47, fontFamily: _family);
+  static const link = IconData(0xe250, fontFamily: _family);
+  static const moreHoriz = IconData(0xe5d3, fontFamily: _family);
+  static const package2 = IconData(0xf569, fontFamily: _family);
+  static const barcode = IconData(0xe70b, fontFamily: _family);
+  static const barcodeScanner = IconData(0xe70c, fontFamily: _family);
+  static const photoCamera = IconData(0xe412, fontFamily: _family);
+  static const photoLibrary = IconData(0xe413, fontFamily: _family);
+  static const receipt = IconData(0xe8b0, fontFamily: _family);
+  static const receiptLong = IconData(0xef6e, fontFamily: _family);
+  static const remove = IconData(0xe15b, fontFamily: _family);
+  static const search = IconData(0xef7a, fontFamily: _family);
+  static const shoppingBag = IconData(0xf1cc, fontFamily: _family);
+  static const soap = IconData(0xf1b2, fontFamily: _family);
+  static const sync = IconData(0xe627, fontFamily: _family);
+  static const trendingDown = IconData(0xe8e3, fontFamily: _family);
+  static const tune = IconData(0xe429, fontFamily: _family);
+  static const viewAgenda = IconData(0xe8e9, fontFamily: _family);
+  static const visibility = IconData(0xe8f4, fontFamily: _family);
+  static const waterBottle = IconData(0xf69d, fontFamily: _family);
+  static const wbSunny = IconData(0xe430, fontFamily: _family);
+  static const _family = 'MaterialSymbolsRounded';
+}

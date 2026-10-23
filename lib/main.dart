@@ -1,13 +1,23 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'design.dart';
 import 'store.dart';
+import 'toast.dart';
 import 'screens/home.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.dark);
+  LicenseRegistry.addLicense(() async* {
+    yield LicenseEntryWithLineBreaks([
+      'Inter',
+    ], await rootBundle.loadString('assets/fonts/Inter-OFL.txt'));
+    yield LicenseEntryWithLineBreaks([
+      'Material Symbols',
+    ], await rootBundle.loadString('assets/fonts/MaterialSymbols-LICENSE.txt'));
+  });
   runApp(const PantryApp());
 }
 
@@ -22,6 +32,7 @@ class PantryApp extends StatelessWidget {
     locale: const Locale('pt', 'BR'),
     localizationsDelegates: GlobalMaterialLocalizations.delegates,
     supportedLocales: const [Locale('pt', 'BR')],
+    builder: (context, child) => ToastHost(child: child!),
     home: store == null ? const _Bootstrap() : PantryHome(store: store!),
   );
 }
@@ -53,10 +64,11 @@ class _BootstrapState extends State<_Bootstrap> {
                 ? Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Editorial('Vamos cuidar dos seus dados.', size: 30),
+                      const Headline('Vamos cuidar dos seus dados.'),
                       const SizedBox(height: 16),
                       const Text(
                         'Não foi possível abrir o estoque salvo. Seus arquivos foram preservados. Feche e abra o app para tentar novamente.',
+                        style: TextStyle(color: muted),
                       ),
                     ],
                   )
@@ -75,24 +87,18 @@ Future<bool> perform(
 }) async {
   try {
     await action();
-    if (context.mounted && success != null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(success)));
-    }
+    if (context.mounted && success != null) showToast(context, success);
     return true;
   } catch (error) {
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            error is StateError
-                ? error.message.toString()
-                : error is FormatException
-                ? error.message
-                : 'Não foi possível salvar. Seus dados anteriores foram mantidos. Tente novamente.',
-          ),
-        ),
+      showToast(
+        context,
+        error is StateError
+            ? error.message.toString()
+            : error is FormatException
+            ? error.message
+            : 'Não foi possível salvar. Seus dados anteriores foram mantidos. Tente novamente.',
+        error: true,
       );
     }
     return false;
@@ -112,6 +118,7 @@ Future<bool> confirm(
         content: Text(message),
         actions: [
           TextButton(
+            style: TextButton.styleFrom(foregroundColor: zinc700),
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancelar'),
           ),

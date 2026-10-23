@@ -1,12 +1,12 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import '../design.dart';
 import '../main.dart';
 import '../models.dart';
 import '../services.dart';
 import '../store.dart';
+import '../symbols.dart';
+import '../toast.dart';
 import 'lots.dart';
 
 class BudgetEditor extends StatefulWidget {
@@ -31,7 +31,7 @@ class _BudgetEditorState extends State<BudgetEditor> {
   }
 
   @override
-  Widget build(BuildContext context) => PanelScaffold(
+  Widget build(BuildContext context) => SheetScaffold(
     title: 'Quanto cabe agora?',
     subtitle: 'Um limite para esta compra. Você pode mudar depois.',
     footer: FilledButton(
@@ -59,10 +59,10 @@ class _BudgetEditorState extends State<BudgetEditor> {
       child: const Text('Salvar orçamento'),
     ),
     child: ListView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
       children: [
-        const Eyebrow('ORÇAMENTO DA COMPRA'),
-        const SizedBox(height: 16),
+        const SectionLabel('Orçamento da compra'),
+        const SizedBox(height: 10),
         TextField(
           controller: value,
           autofocus: true,
@@ -77,8 +77,9 @@ class _BudgetEditorState extends State<BudgetEditor> {
         const SizedBox(height: 20),
         const Text(
           'O total planejado considera os itens essenciais e os que cabem no orçamento. Os que podem esperar ficam de fora.',
-          style: TextStyle(color: muted),
+          style: TextStyle(color: muted, fontSize: 13),
         ),
+        const SizedBox(height: 8),
         TextButton(
           onPressed: saving
               ? null
@@ -142,7 +143,7 @@ class _ShoppingEditorState extends State<ShoppingEditor> {
   }
 
   @override
-  Widget build(BuildContext context) => PanelScaffold(
+  Widget build(BuildContext context) => SheetScaffold(
     title: widget.item == null ? 'Na próxima compra.' : 'Do seu jeito.',
     subtitle: 'O que você quer levar para casa?',
     footer: FilledButton(
@@ -188,7 +189,7 @@ class _ShoppingEditorState extends State<ShoppingEditor> {
     child: Form(
       key: form,
       child: ListView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
         children: [
           TextFormField(
             controller: name,
@@ -249,35 +250,26 @@ class _ShoppingEditorState extends State<ShoppingEditor> {
                 ? 'Informe um preço válido.'
                 : null,
           ),
-          const SizedBox(height: 26),
+          const SizedBox(height: 18),
           ExpiryField(
             value: expiry,
             onChanged: (value) => setState(() => expiry = value),
           ),
-          const SizedBox(height: 20),
-          const Eyebrow('PRIORIDADE NESTA COMPRA'),
-          const SizedBox(height: 10),
-          RadioGroup<Priority>(
-            groupValue: priority,
-            onChanged: (v) => setState(() => priority = v!),
-            child: Column(
-              children: [
-                for (final p in Priority.values)
-                  RadioListTile<Priority>(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(p.label, style: const TextStyle(fontSize: 14)),
-                    subtitle: p == Priority.later
-                        ? const Text(
-                            'Fica fora do total planejado.',
-                            style: TextStyle(fontSize: 11, color: muted),
-                          )
-                        : null,
-                    value: p,
-                  ),
-              ],
-            ),
+          const SizedBox(height: 24),
+          const SectionLabel('Prioridade nesta compra'),
+          const SizedBox(height: 8),
+          SegmentedPicker<Priority>(
+            options: [for (final p in Priority.values) (p, p.label, null)],
+            selected: priority,
+            onSelected: (v) => setState(() => priority = v),
           ),
-          if (widget.item != null)
+          const SizedBox(height: 8),
+          const Text(
+            'O que pode esperar fica fora do total planejado.',
+            style: TextStyle(fontSize: 12, color: muted),
+          ),
+          if (widget.item != null) ...[
+            const SizedBox(height: 16),
             TextButton(
               onPressed: saving
                   ? null
@@ -307,8 +299,10 @@ class _ShoppingEditorState extends State<ShoppingEditor> {
                         }
                       }
                     },
+              style: TextButton.styleFrom(foregroundColor: dangerInk),
               child: const Text('Remover da lista'),
             ),
+          ],
         ],
       ),
     ),
@@ -329,16 +323,17 @@ class Counter extends StatelessWidget {
   final ValueChanged<int>? onChanged;
   @override
   Widget build(BuildContext context) => Surface(
-    padding: const EdgeInsets.fromLTRB(16, 6, 8, 6),
+    color: zinc100,
+    padding: const EdgeInsets.fromLTRB(14, 4, 4, 4),
     child: Row(
       children: [
-        Expanded(child: Text(label, style: const TextStyle(fontSize: 13))),
+        Expanded(child: Text(label, style: const TextStyle(fontSize: 14))),
         IconButton(
           tooltip: 'Diminuir $label',
           onPressed: value > min && onChanged != null
               ? () => onChanged!(value - 1)
               : null,
-          icon: const Icon(CupertinoIcons.minus, size: 18),
+          icon: const Icon(Symbols.remove, size: 20),
         ),
         SizedBox(
           width: 28,
@@ -353,7 +348,7 @@ class Counter extends StatelessWidget {
           onPressed: value < max && onChanged != null
               ? () => onChanged!(value + 1)
               : null,
-          icon: const Icon(CupertinoIcons.add, size: 18),
+          icon: const Icon(Symbols.add, size: 20),
         ),
       ],
     ),
@@ -409,12 +404,10 @@ class _ProductEditorState extends State<ProductEditor> {
       if (mounted && path != null) setState(() => p.photo = path);
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Não foi possível abrir a foto. Verifique a permissão nos Ajustes do iPhone.',
-            ),
-          ),
+        showToast(
+          context,
+          'Não foi possível abrir a foto. Verifique a permissão nos Ajustes do iPhone.',
+          error: true,
         );
       }
     } finally {
@@ -423,7 +416,7 @@ class _ProductEditorState extends State<ProductEditor> {
   }
 
   @override
-  Widget build(BuildContext context) => PanelScaffold(
+  Widget build(BuildContext context) => SheetScaffold(
     title: existing ? 'Sobre o produto.' : 'Um lugar na sua casa.',
     subtitle: 'Cadastre uma vez. Reconheça nas próximas compras.',
     footer: FilledButton(
@@ -482,11 +475,11 @@ class _ProductEditorState extends State<ProductEditor> {
     child: Form(
       key: form,
       child: ListView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
         children: [
           Row(
             children: [
-              ProductArt(product: p, size: 90),
+              ProductArt(product: p, size: 88),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
@@ -496,14 +489,15 @@ class _ProductEditorState extends State<ProductEditor> {
                       onPressed: photoBusy
                           ? null
                           : () => photo(ImageSource.camera),
-                      icon: const Icon(CupertinoIcons.camera, size: 18),
+                      icon: const Icon(Symbols.photoCamera, size: 18),
                       label: const Text('Tirar foto'),
                     ),
-                    TextButton(
+                    TextButton.icon(
                       onPressed: photoBusy
                           ? null
                           : () => photo(ImageSource.gallery),
-                      child: const Text('Escolher da galeria'),
+                      icon: const Icon(Symbols.photoLibrary, size: 18),
+                      label: const Text('Escolher da galeria'),
                     ),
                   ],
                 ),
@@ -588,12 +582,12 @@ class _ProductEditorState extends State<ProductEditor> {
               padding: EdgeInsets.only(bottom: 10),
               child: Text(
                 'As unidades com validade são ajustadas em “Lotes e validades” no detalhe do produto.',
-                style: TextStyle(fontSize: 11, color: muted),
+                style: TextStyle(fontSize: 12, color: muted),
               ),
             ),
           const Text(
             'Para cadastrar uma embalagem já aberta, salve e toque em “Abrir embalagem”. Depois ajuste o nível.',
-            style: TextStyle(fontSize: 11, color: muted),
+            style: TextStyle(fontSize: 12, color: muted),
           ),
           const SizedBox(height: 18),
           TextFormField(
@@ -623,284 +617,12 @@ class _ProductEditorState extends State<ProductEditor> {
               padding: const EdgeInsets.only(top: 18),
               child: Text(
                 'Cadastro sugerido por ${p.source}. Confira os dados. Base ODbL; imagens CC BY-SA. openfoodfacts.org',
-                style: const TextStyle(fontSize: 10, color: muted),
+                style: const TextStyle(fontSize: 11, color: faint),
               ),
             ),
           const SizedBox(height: 20),
         ],
       ),
     ),
-  );
-}
-
-class ProductDetail extends StatelessWidget {
-  const ProductDetail({super.key, required this.store, required this.id});
-  final PantryStore store;
-  final String id;
-  @override
-  Widget build(BuildContext context) => ListenableBuilder(
-    listenable: store,
-    builder: (context, _) {
-      final p = store.data.product(id);
-      if (p == null) {
-        return const PanelScaffold(
-          title: 'Produto removido.',
-          child: SizedBox(),
-        );
-      }
-      return PanelScaffold(
-        title: p.name,
-        subtitle: [p.brand, p.pack].where((e) => e.isNotEmpty).join(' · '),
-        child: ListView(
-          padding: const EdgeInsets.all(24),
-          children: [
-            Center(child: ProductArt(product: p, size: 150)),
-            const SizedBox(height: 26),
-            Row(
-              children: [
-                Eyebrow(p.location),
-                const Spacer(),
-                Builder(
-                  builder: (anchor) => TextButton.icon(
-                    onPressed: () => fluidPage(
-                      context,
-                      ProductEditor(store: store, product: p),
-                      origin: originRect(anchor),
-                    ),
-                    icon: const Icon(CupertinoIcons.pencil, size: 16),
-                    label: const Text('Editar'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Surface(
-              color: mint,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${p.closed} ${p.closed == 1 ? 'embalagem fechada' : 'embalagens fechadas'}',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Abriu uma? Vamos acompanhar sem medir.',
-                    style: TextStyle(color: green, fontSize: 12),
-                  ),
-                  const SizedBox(height: 14),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: p.closed == 0 || store.busy
-                          ? null
-                          : () async {
-                              HapticFeedback.lightImpact();
-                              await choosePackage(context, store, id);
-                            },
-                      icon: const Icon(CupertinoIcons.cube_box, size: 19),
-                      label: const Text('Abrir embalagem'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            Builder(
-              builder: (anchor) => OutlinedButton.icon(
-                onPressed: () => fluidPage(
-                  context,
-                  LotsPage(store: store, id: id),
-                  origin: originRect(anchor),
-                ),
-                icon: const Icon(CupertinoIcons.calendar, size: 18),
-                label: const Text('Lotes e validades'),
-              ),
-            ),
-            if (p.nearestExpiry != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  expiryLabel(p.nearestExpiry!, DateTime.now()),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: p.needsExpiryAttention(DateTime.now())
-                        ? orange
-                        : muted,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-            if (p.opened.isNotEmpty) ...[
-              const SizedBox(height: 28),
-              const Eyebrow('NO OLHÔMETRO'),
-              const SizedBox(height: 10),
-              const Text(
-                'Toque no nível que mais se aproxima. Pode corrigir quando quiser.',
-                style: TextStyle(color: muted, fontSize: 12),
-              ),
-            ],
-            for (var i = 0; i < p.opened.length; i++)
-              Padding(
-                padding: const EdgeInsets.only(top: 14),
-                child: Surface(
-                  child: Column(
-                    children: [
-                      Text(
-                        'Embalagem aberta ${i + 1}',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      ExpiryField(
-                        value: p.lot(p.openedLotIds[i])?.expiry,
-                        enabled: !store.busy,
-                        onChanged: (value) => perform(
-                          context,
-                          () => store.assignOpenedExpiry(id, i, value),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      LiquidLevel(level: p.opened[i]),
-                      const SizedBox(height: 8),
-                      Text(
-                        levelNames[(p.opened[i] * 4).round()],
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(height: 14),
-                      Wrap(
-                        spacing: 7,
-                        runSpacing: 7,
-                        alignment: WrapAlignment.center,
-                        children: [
-                          for (final (n, label) in [
-                            (1, '¼'),
-                            (2, '½'),
-                            (3, '¾'),
-                            (4, 'Cheio'),
-                          ])
-                            ChoiceChip(
-                              label: Text(label),
-                              selected: (p.opened[i] * 4).round() == n,
-                              onSelected: store.busy
-                                  ? null
-                                  : (_) {
-                                      HapticFeedback.selectionClick();
-                                      perform(
-                                        context,
-                                        () => store.setLevel(id, i, n / 4),
-                                      );
-                                    },
-                            ),
-                        ],
-                      ),
-                      TextButton(
-                        onPressed: store.busy
-                            ? null
-                            : () async {
-                                final previous = p.opened[i];
-                                final previousLotId = p.openedLotIds[i];
-                                final ok = await perform(
-                                  context,
-                                  () => store.setLevel(id, i, 0),
-                                );
-                                if (ok && context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: const Text(
-                                        'Embalagem finalizada.',
-                                      ),
-                                      action: SnackBarAction(
-                                        label: 'Desfazer',
-                                        onPressed: () => perform(
-                                          context,
-                                          () => store.restoreOpened(
-                                            id,
-                                            previous,
-                                            previousLotId,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                }
-                              },
-                        child: const Text('Acabou esta embalagem'),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            const SizedBox(height: 24),
-            Surface(
-              color: const Color(0xFFF0EADF),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    p.low
-                        ? 'Vale pensar na reposição.'
-                        : 'Por aqui, está tudo certo.',
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 7),
-                  Text(
-                    'Mínimo desejado: ${p.minimum.toStringAsFixed(0)} embalagens. Você escolhe quando comprar.',
-                    style: const TextStyle(fontSize: 12, color: muted),
-                  ),
-                  const SizedBox(height: 9),
-                  Builder(
-                    builder: (anchor) => TextButton.icon(
-                      onPressed: store.data.list.any((e) => e.productId == id)
-                          ? null
-                          : () => perform(
-                              context,
-                              () => store.addSuggestion(id),
-                              success: 'Adicionado à próxima compra.',
-                            ),
-                      icon: const Icon(CupertinoIcons.add, size: 16),
-                      label: Text(
-                        store.data.list.any((e) => e.productId == id)
-                            ? 'Já está na lista'
-                            : 'Adicionar à lista',
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 22),
-            TextButton(
-              onPressed: store.busy
-                  ? null
-                  : () async {
-                      if (await confirm(
-                            context,
-                            'Excluir este produto?',
-                            'O cadastro e seu saldo serão removidos. Itens na lista ficarão sem vínculo e o histórico será preservado.',
-                            label: 'Excluir',
-                          ) &&
-                          context.mounted) {
-                        final ok = await perform(
-                          context,
-                          () => store.removeProduct(id),
-                        );
-                        if (ok && context.mounted) Navigator.pop(context);
-                      }
-                    },
-              child: const Text(
-                'Excluir produto',
-                style: TextStyle(color: orange),
-              ),
-            ),
-          ],
-        ),
-      );
-    },
   );
 }

@@ -1,75 +1,286 @@
 import 'dart:io';
 import 'dart:math' as math;
-import 'dart:ui';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'models.dart';
+import 'motion.dart';
+import 'symbols.dart';
 
-const paper = Color(0xFFF7F6F0);
-const ink = Color(0xFF203C35);
-const muted = Color(0xFF788079);
-const green = Color(0xFF386652);
-const mint = Color(0xFFE3EDDD);
-const peach = Color(0xFFF0D8BF);
-const lineColor = Color(0xFFE6E7DE);
-const orange = Color(0xFFAC5A31);
+// HeroUI light palette. Neutrals follow its zinc "default" scale.
+const fg = Color(0xFF11181C);
+const muted = Color(0xFF71717A);
+const faint = Color(0xFFA1A1AA);
+const zinc50 = Color(0xFFFAFAFA);
+const zinc100 = Color(0xFFF4F4F5);
+const zinc200 = Color(0xFFE4E4E7);
+const zinc300 = Color(0xFFD4D4D8);
+const zinc600 = Color(0xFF52525B);
+const zinc700 = Color(0xFF3F3F46);
+const primary = Color(0xFF006FEE);
+const primarySoft = Color(0xFFE6F1FE);
+const primaryInk = Color(0xFF005BC4);
+const success = Color(0xFF17C964);
+const successStrong = Color(0xFF12A150);
+const successSoft = Color(0xFFE8FAF0);
+const successInk = Color(0xFF0E793C);
+const warning = Color(0xFFF5A524);
+const warningSoft = Color(0xFFFEFCE8);
+const warningInk = Color(0xFF936316);
+const danger = Color(0xFFF31260);
+const dangerSoft = Color(0xFFFEE7EF);
+const dangerInk = Color(0xFFC20E4D);
+const secondary = Color(0xFF7828C8);
+const secondarySoft = Color(0xFFF2EAFA);
+const secondaryInk = Color(0xFF6020A0);
 
-ThemeData pantryTheme() => ThemeData(
-  useMaterial3: true,
-  scaffoldBackgroundColor: paper,
-  fontFamily: '.SF Pro Text',
-  colorScheme: ColorScheme.fromSeed(
-    seedColor: green,
-    primary: green,
-    surface: paper,
-    onSurface: ink,
+// HeroUI shadows. CSS blur b has sigma b/2, while Flutter's blurRadius r has
+// sigma 0.57735r + 0.5, so r = (b/2 - 0.5) / 0.57735. The 1px hairline ring
+// becomes a half-pixel spread.
+const _hairline = BoxShadow(color: Color(0x1A000000), spreadRadius: .5);
+const shadowSmall = [
+  BoxShadow(color: Color(0x05000000), blurRadius: 3.46),
+  BoxShadow(color: Color(0x0F000000), offset: Offset(0, 2), blurRadius: 7.79),
+  _hairline,
+];
+const shadowMedium = [
+  BoxShadow(color: Color(0x08000000), blurRadius: 12.12),
+  BoxShadow(color: Color(0x14000000), offset: Offset(0, 2), blurRadius: 25.11),
+  _hairline,
+];
+const shadowLarge = [
+  BoxShadow(color: Color(0x0A000000), blurRadius: 25.11),
+  BoxShadow(color: Color(0x1F000000), offset: Offset(0, 30), blurRadius: 51.1),
+  _hairline,
+];
+const shadowPrimary = [
+  BoxShadow(
+    color: Color(0x66006FEE),
+    offset: Offset(0, 10),
+    blurRadius: 12.12,
+    spreadRadius: -3,
   ),
-  textTheme: const TextTheme(
-    bodyMedium: TextStyle(fontSize: 15, height: 1.45, color: ink),
-    titleMedium: TextStyle(
-      fontSize: 16,
-      fontWeight: FontWeight.w600,
-      color: ink,
-    ),
-  ),
-  dividerColor: lineColor,
-  inputDecorationTheme: InputDecorationTheme(
-    filled: true,
-    fillColor: Colors.white,
-    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
-    border: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(18),
-      borderSide: const BorderSide(color: lineColor),
-    ),
-    enabledBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(18),
-      borderSide: const BorderSide(color: lineColor),
-    ),
-    labelStyle: const TextStyle(color: muted),
-  ),
-  filledButtonTheme: FilledButtonThemeData(
-    style: FilledButton.styleFrom(
-      backgroundColor: ink,
-      foregroundColor: Colors.white,
-      minimumSize: const Size(48, 54),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-    ),
-  ),
-  textButtonTheme: TextButtonThemeData(
-    style: TextButton.styleFrom(
-      foregroundColor: green,
-      minimumSize: const Size(44, 44),
-    ),
-  ),
-  snackBarTheme: SnackBarThemeData(
-    behavior: SnackBarBehavior.floating,
-    backgroundColor: ink,
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-  ),
-);
+];
 
-class Editorial extends StatelessWidget {
-  const Editorial(this.text, {super.key, this.size = 38, this.color = ink});
+const interFeatures = [FontFeature('cv11'), FontFeature('ss01')];
+
+TextTheme _inter(TextTheme t) {
+  TextStyle? f(TextStyle? s) =>
+      s?.copyWith(fontFamily: 'Inter', fontFeatures: interFeatures);
+  return t.copyWith(
+    displayLarge: f(t.displayLarge),
+    displayMedium: f(t.displayMedium),
+    displaySmall: f(t.displaySmall),
+    headlineLarge: f(t.headlineLarge),
+    headlineMedium: f(t.headlineMedium),
+    headlineSmall: f(t.headlineSmall),
+    titleLarge: f(t.titleLarge),
+    titleMedium: f(t.titleMedium),
+    titleSmall: f(t.titleSmall),
+    bodyLarge: f(t.bodyLarge),
+    bodyMedium: f(t.bodyMedium),
+    bodySmall: f(t.bodySmall),
+    labelLarge: f(t.labelLarge),
+    labelMedium: f(t.labelMedium),
+    labelSmall: f(t.labelSmall),
+  );
+}
+
+ThemeData pantryTheme() {
+  final scheme = ColorScheme.fromSeed(seedColor: primary).copyWith(
+    primary: primary,
+    onPrimary: Colors.white,
+    primaryContainer: primarySoft,
+    onPrimaryContainer: primaryInk,
+    secondaryContainer: primarySoft,
+    onSecondaryContainer: primaryInk,
+    surface: Colors.white,
+    onSurface: fg,
+    onSurfaceVariant: muted,
+    surfaceTint: Colors.transparent,
+    surfaceContainerLowest: Colors.white,
+    surfaceContainerLow: zinc50,
+    surfaceContainer: zinc100,
+    surfaceContainerHigh: Colors.white,
+    surfaceContainerHighest: zinc100,
+    outline: zinc300,
+    outlineVariant: zinc200,
+    error: danger,
+    onError: Colors.white,
+    errorContainer: dangerSoft,
+    onErrorContainer: dangerInk,
+  );
+  final base = ThemeData(useMaterial3: true, colorScheme: scheme);
+  const label = TextStyle(
+    fontFamily: 'Inter',
+    fontSize: 14,
+    fontWeight: FontWeight.w500,
+    fontFeatures: interFeatures,
+  );
+  final rounded12 = RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(12),
+  );
+  OutlineInputBorder input([Color? color]) => OutlineInputBorder(
+    borderRadius: BorderRadius.circular(12),
+    borderSide: color == null
+        ? BorderSide.none
+        : BorderSide(color: color, width: 1.5),
+  );
+  return base.copyWith(
+    scaffoldBackgroundColor: Colors.white,
+    splashColor: zinc200.withValues(alpha: .5),
+    highlightColor: Colors.transparent,
+    dividerColor: zinc200,
+    dividerTheme: const DividerThemeData(color: zinc100, thickness: 1),
+    textTheme: _inter(
+      base.textTheme
+          .apply(bodyColor: fg, displayColor: fg)
+          .copyWith(
+            bodyLarge: const TextStyle(fontSize: 14, height: 1.45, color: fg),
+            bodyMedium: const TextStyle(fontSize: 14, height: 1.45, color: fg),
+            titleMedium: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: fg,
+            ),
+          ),
+    ),
+    iconTheme: const IconThemeData(color: fg, size: 20),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: zinc100,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      border: input(),
+      enabledBorder: input(),
+      disabledBorder: input(),
+      focusedBorder: input(zinc300),
+      errorBorder: input(dangerInk),
+      focusedErrorBorder: input(dangerInk),
+      labelStyle: const TextStyle(color: muted, fontSize: 14),
+      floatingLabelStyle: const TextStyle(color: muted, fontSize: 13),
+      hintStyle: const TextStyle(color: faint, fontSize: 14),
+      prefixIconColor: faint,
+      errorStyle: const TextStyle(color: dangerInk, fontSize: 12),
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        backgroundColor: primary,
+        foregroundColor: Colors.white,
+        disabledBackgroundColor: zinc100,
+        disabledForegroundColor: faint,
+        minimumSize: const Size(48, 48),
+        textStyle: label,
+        shape: rounded12,
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        backgroundColor: zinc100,
+        foregroundColor: zinc700,
+        disabledForegroundColor: faint,
+        minimumSize: const Size(48, 48),
+        side: BorderSide.none,
+        textStyle: label,
+        shape: rounded12,
+      ),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(
+        foregroundColor: primary,
+        minimumSize: const Size(44, 44),
+        textStyle: label,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    ),
+    iconButtonTheme: IconButtonThemeData(
+      style: IconButton.styleFrom(foregroundColor: zinc600),
+    ),
+    checkboxTheme: CheckboxThemeData(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+      side: const BorderSide(color: zinc300, width: 2),
+    ),
+    switchTheme: SwitchThemeData(
+      trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
+      thumbColor: WidgetStateProperty.all(Colors.white),
+      trackColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.selected) ? primary : zinc200,
+      ),
+    ),
+    chipTheme: const ChipThemeData(
+      backgroundColor: zinc100,
+      selectedColor: primary,
+      side: BorderSide.none,
+      shape: StadiumBorder(),
+      showCheckmark: false,
+      labelStyle: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w500,
+        color: zinc700,
+      ),
+      secondaryLabelStyle: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w500,
+        color: Colors.white,
+      ),
+    ),
+    dialogTheme: DialogThemeData(
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      titleTextStyle: const TextStyle(
+        fontFamily: 'Inter',
+        fontSize: 18,
+        fontWeight: FontWeight.w600,
+        color: fg,
+      ),
+      contentTextStyle: const TextStyle(
+        fontFamily: 'Inter',
+        fontSize: 14,
+        height: 1.45,
+        color: zinc600,
+      ),
+    ),
+    bottomSheetTheme: const BottomSheetThemeData(
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+    ),
+    popupMenuTheme: PopupMenuThemeData(
+      color: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    ),
+    listTileTheme: const ListTileThemeData(
+      iconColor: muted,
+      titleTextStyle: TextStyle(
+        fontFamily: 'Inter',
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
+        color: fg,
+      ),
+      subtitleTextStyle: TextStyle(
+        fontFamily: 'Inter',
+        fontSize: 12,
+        color: muted,
+      ),
+    ),
+    textSelectionTheme: const TextSelectionThemeData(cursorColor: primary),
+  );
+}
+
+/// Distance from the bottom edge to the floating navigation.
+double floatingNavBottom(BuildContext context) {
+  final inset = MediaQuery.paddingOf(context).bottom;
+  return inset > 0 ? math.max(inset - 6, 16) : 16;
+}
+
+/// Scroll padding that clears the status bar and the floating navigation.
+EdgeInsets tabPadding(BuildContext context, {double extra = 0}) =>
+    EdgeInsets.only(
+      top: MediaQuery.paddingOf(context).top,
+      bottom: floatingNavBottom(context) + 122 + extra,
+    );
+
+/// Bold Inter title, tight like HeroUI's page headings.
+class Headline extends StatelessWidget {
+  const Headline(this.text, {super.key, this.size = 30, this.color = fg});
   final String text;
   final double size;
   final Color color;
@@ -77,28 +288,24 @@ class Editorial extends StatelessWidget {
   Widget build(BuildContext context) => Text(
     text,
     style: TextStyle(
-      fontFamily: 'Georgia',
       fontSize: size,
-      height: 1.12,
-      letterSpacing: -1.1,
+      fontWeight: FontWeight.w700,
+      height: 1.15,
+      letterSpacing: -size * .027,
       color: color,
     ),
   );
 }
 
-class Eyebrow extends StatelessWidget {
-  const Eyebrow(this.text, {super.key, this.color = muted});
+/// Small grey heading above a group ("Seus dados", "No olhômetro").
+class SectionLabel extends StatelessWidget {
+  const SectionLabel(this.text, {super.key, this.color = muted});
   final String text;
   final Color color;
   @override
   Widget build(BuildContext context) => Text(
-    text.toUpperCase(),
-    style: TextStyle(
-      color: color,
-      fontSize: 10,
-      letterSpacing: 2,
-      fontWeight: FontWeight.w700,
-    ),
+    text,
+    style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600),
   );
 }
 
@@ -107,291 +314,539 @@ class Surface extends StatelessWidget {
     super.key,
     required this.child,
     this.color = Colors.white,
-    this.padding = const EdgeInsets.all(20),
+    this.padding = const EdgeInsets.all(16),
+    this.shadow = shadowMedium,
   });
   final Widget child;
   final Color color;
   final EdgeInsets padding;
+  final List<BoxShadow> shadow;
   @override
   Widget build(BuildContext context) => Container(
     padding: padding,
     decoration: BoxDecoration(
       color: color,
-      borderRadius: BorderRadius.circular(26),
-      border: Border.all(color: lineColor.withValues(alpha: .65)),
+      borderRadius: BorderRadius.circular(14),
+      boxShadow: color == Colors.white ? shadow : null,
     ),
     child: child,
   );
 }
 
-class RoundButton extends StatelessWidget {
-  const RoundButton({
+/// White rounded group whose rows are separated by hairlines.
+class GroupedList extends StatelessWidget {
+  const GroupedList({
     super.key,
-    required this.icon,
-    required this.label,
-    required this.onPressed,
-    this.dark = false,
+    required this.children,
+    this.shadow = shadowMedium,
   });
-  final IconData icon;
-  final String label;
-  final VoidCallback? onPressed;
-  final bool dark;
+  final List<Widget> children;
+  final List<BoxShadow> shadow;
   @override
-  Widget build(BuildContext context) => IconButton.filledTonal(
-    tooltip: label,
-    onPressed: onPressed,
-    style: IconButton.styleFrom(
-      backgroundColor: dark ? ink : Colors.white,
-      foregroundColor: dark ? Colors.white : ink,
-      minimumSize: const Size(48, 48),
-      side: dark ? null : const BorderSide(color: lineColor),
+  Widget build(BuildContext context) => Container(
+    clipBehavior: Clip.antiAlias,
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      boxShadow: shadow,
     ),
-    icon: Icon(icon, size: 21),
+    child: Material(
+      type: MaterialType.transparency,
+      child: Column(
+        children: [
+          for (var i = 0; i < children.length; i++) ...[
+            if (i > 0) const Divider(height: 1, indent: 16),
+            children[i],
+          ],
+        ],
+      ),
+    ),
   );
 }
 
-class EmptyState extends StatelessWidget {
-  const EmptyState({
+class ListRow extends StatelessWidget {
+  const ListRow({
     super.key,
-    required this.icon,
     required this.title,
-    required this.message,
-    this.action,
+    this.value,
+    this.onTap,
+    this.chevron = false,
+    this.trailing,
   });
-  final IconData icon;
-  final String title, message;
-  final Widget? action;
+  final String title;
+  final String? value;
+  final VoidCallback? onTap;
+  final bool chevron;
+  final Widget? trailing;
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 12),
-    child: Column(
+  Widget build(BuildContext context) => InkWell(
+    onTap: onTap,
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 52),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(16, 10, chevron ? 12 : 16, 10),
+        child: Row(
+          children: [
+            Expanded(
+              flex: 3,
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: onTap == null && trailing == null ? faint : fg,
+                ),
+              ),
+            ),
+            if (value != null) ...[
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 2,
+                child: Text(
+                  value!,
+                  textAlign: TextAlign.end,
+                  style: const TextStyle(fontSize: 12, color: muted),
+                ),
+              ),
+            ],
+            ?trailing,
+            if (chevron) ...[
+              const SizedBox(width: 4),
+              const Icon(Symbols.chevronRight, size: 20, color: faint),
+            ],
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+/// Pill used for statuses ("Na lista", "Vence amanhã", "Baixo").
+class Tag extends StatelessWidget {
+  const Tag(
+    this.label, {
+    super.key,
+    this.icon,
+    this.background = zinc100,
+    this.foreground = zinc700,
+    this.size = 11,
+  });
+  final String label;
+  final IconData? icon;
+  final Color background, foreground;
+  final double size;
+  @override
+  Widget build(BuildContext context) => AnimatedContainer(
+    duration: motionTime(context, 250),
+    constraints: BoxConstraints(minHeight: size + 11),
+    padding: EdgeInsets.fromLTRB(icon == null ? 8 : 6, 2, 8, 2),
+    decoration: BoxDecoration(
+      color: background,
+      borderRadius: BorderRadius.circular(999),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          width: 86,
-          height: 86,
-          decoration: const BoxDecoration(
-            color: mint,
-            borderRadius: BorderRadius.all(Radius.circular(30)),
+        if (icon != null) ...[
+          Icon(icon, size: size + 3, color: foreground),
+          const SizedBox(width: 3),
+        ],
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: size,
+              fontWeight: FontWeight.w500,
+              color: foreground,
+            ),
           ),
-          child: Icon(icon, size: 36, color: green),
         ),
-        const SizedBox(height: 22),
-        Editorial(title, size: 27),
-        const SizedBox(height: 10),
-        Text(
-          message,
-          textAlign: TextAlign.center,
-          style: const TextStyle(color: muted, height: 1.5),
-        ),
-        if (action != null) ...[const SizedBox(height: 18), action!],
       ],
     ),
   );
 }
 
-IconData productIcon(String category, String name) {
-  final n = name.toLowerCase();
-  if (n.contains('café')) return CupertinoIcons.cube_box;
-  if (n.contains('leite') || category == 'Bebidas') return CupertinoIcons.drop;
-  if (category == 'Higiene') return CupertinoIcons.sparkles;
-  if (category == 'Limpeza') return CupertinoIcons.drop_triangle;
-  return CupertinoIcons.cube_box;
+enum ButtonTone { solid, soft, flat, success, danger, ghostDanger }
+
+/// HeroUI-style button: solid, flat or ghost, in three sizes.
+class AppButton extends StatelessWidget {
+  const AppButton({
+    super.key,
+    required this.label,
+    required this.onPressed,
+    this.icon,
+    this.tone = ButtonTone.solid,
+    this.height = 44,
+    this.expand = false,
+    this.glow = false,
+  });
+  final String label;
+  final IconData? icon;
+  final VoidCallback? onPressed;
+  final ButtonTone tone;
+  final double height;
+  final bool expand, glow;
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onPressed != null;
+    final (background, foreground) = !enabled
+        ? (zinc100, faint)
+        : switch (tone) {
+            ButtonTone.solid => (primary, Colors.white),
+            ButtonTone.soft => (primarySoft, primaryInk),
+            ButtonTone.flat => (zinc100, zinc700),
+            ButtonTone.success => (successSoft, successInk),
+            ButtonTone.danger => (dangerSoft, dangerInk),
+            ButtonTone.ghostDanger => (Colors.transparent, dangerInk),
+          };
+    final small = height <= 36;
+    final radius = BorderRadius.circular(small ? 8 : 12);
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      child: AnimatedContainer(
+        duration: motionTime(context, 250),
+        constraints: BoxConstraints(minHeight: height),
+        width: expand ? double.infinity : null,
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: radius,
+          boxShadow: glow && enabled && tone == ButtonTone.solid
+              ? const [
+                  BoxShadow(
+                    color: Color(0x66006FEE),
+                    offset: Offset(0, 8),
+                    blurRadius: 11.26,
+                    spreadRadius: -4,
+                  ),
+                ]
+              : null,
+        ),
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            borderRadius: radius,
+            onTap: onPressed,
+            splashColor: tone == ButtonTone.ghostDanger
+                ? dangerSoft
+                : Colors.white24,
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: small ? 12 : 14,
+                vertical: 4,
+              ),
+              child: Row(
+                mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (icon != null) ...[
+                    Icon(icon, size: small ? 16 : 19, color: foreground),
+                    SizedBox(width: small ? 4 : 6),
+                  ],
+                  Flexible(
+                    child: Text(
+                      label,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: small ? 12 : (height < 40 ? 13 : 14),
+                        fontWeight: FontWeight.w500,
+                        color: foreground,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
+/// Small rounded square holding an icon.
+class IconTile extends StatelessWidget {
+  const IconTile(
+    this.icon, {
+    super.key,
+    this.background = primarySoft,
+    this.foreground = primary,
+    this.size = 36,
+    this.iconSize = 20,
+  });
+  final IconData icon;
+  final Color background, foreground;
+  final double size, iconSize;
+  @override
+  Widget build(BuildContext context) => Container(
+    width: size,
+    height: size,
+    decoration: BoxDecoration(
+      color: background,
+      borderRadius: BorderRadius.circular(size * .28),
+    ),
+    child: Icon(icon, size: iconSize, color: foreground),
+  );
+}
+
+/// Grey track with a white sliding selection.
+class SegmentedPicker<T> extends StatelessWidget {
+  const SegmentedPicker({
+    super.key,
+    required this.options,
+    required this.selected,
+    required this.onSelected,
+    this.keyPrefix,
+  });
+  final List<(T, String, IconData?)> options;
+  final T? selected;
+  final ValueChanged<T>? onSelected;
+  final String? keyPrefix;
+  @override
+  Widget build(BuildContext context) => Container(
+    constraints: const BoxConstraints(minHeight: 40),
+    padding: const EdgeInsets.all(4),
+    decoration: BoxDecoration(
+      color: zinc100,
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: IntrinsicHeight(
+      child: Row(
+        children: [
+          for (final (i, (value, label, icon)) in options.indexed) ...[
+            if (i > 0) const SizedBox(width: 2),
+            Expanded(
+              child: Semantics(
+                button: true,
+                selected: value == selected,
+                child: GestureDetector(
+                  key: keyPrefix == null ? null : ValueKey('$keyPrefix-$value'),
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onSelected == null ? null : () => onSelected!(value),
+                  child: AnimatedContainer(
+                    duration: motionTime(context, 200),
+                    constraints: const BoxConstraints(minHeight: 32),
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    decoration: BoxDecoration(
+                      color: value == selected
+                          ? Colors.white
+                          : Colors.white.withValues(alpha: 0),
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: value == selected ? shadowSmall : null,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (icon != null) ...[
+                          Icon(
+                            icon,
+                            size: 18,
+                            color: value == selected ? fg : muted,
+                          ),
+                          const SizedBox(width: 6),
+                        ],
+                        Flexible(
+                          child: Text(
+                            label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: value == selected ? fg : muted,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    ),
+  );
+}
+
+/// Horizontally scrolling filter pills.
+class FilterPills extends StatelessWidget {
+  const FilterPills({
+    super.key,
+    required this.options,
+    required this.selected,
+    required this.onSelected,
+    this.padding = const EdgeInsets.symmetric(horizontal: 20),
+  });
+  final List<String> options;
+  final String selected;
+  final ValueChanged<String> onSelected;
+  final EdgeInsets padding;
+  @override
+  Widget build(BuildContext context) => SingleChildScrollView(
+    scrollDirection: Axis.horizontal,
+    padding: padding,
+    child: Row(
+      children: [
+        for (final option in options)
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: Semantics(
+              button: true,
+              selected: option == selected,
+              child: GestureDetector(
+                onTap: () => onSelected(option),
+                child: AnimatedContainer(
+                  duration: motionTime(context, 200),
+                  constraints: const BoxConstraints(minHeight: 30),
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: option == selected ? primary : zinc100,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    option,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: option == selected ? Colors.white : zinc700,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    ),
+  );
+}
+
+class DashedBox extends StatelessWidget {
+  const DashedBox({super.key, required this.child});
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => CustomPaint(
+    painter: _DashedBorderPainter(),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
+      child: child,
+    ),
+  );
+}
+
+class _DashedBorderPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final outline = Path()
+      ..addRRect(
+        RRect.fromRectAndRadius(
+          (Offset.zero & size).deflate(1),
+          const Radius.circular(14),
+        ),
+      );
+    final paint = Paint()
+      ..color = zinc200
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+    for (final metric in outline.computeMetrics()) {
+      for (var d = 0.0; d < metric.length; d += 10) {
+        canvas.drawPath(
+          metric.extractPath(d, math.min(d + 6, metric.length)),
+          paint,
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedBorderPainter old) => false;
+}
+
+class EmptyState extends StatelessWidget {
+  const EmptyState({
+    super.key,
+    required this.title,
+    required this.message,
+    this.action,
+  });
+  final String title, message;
+  final Widget? action;
+  @override
+  Widget build(BuildContext context) => DashedBox(
+    child: Column(
+      children: [
+        Text(
+          title,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          message,
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: muted, fontSize: 13, height: 1.5),
+        ),
+        if (action != null) ...[const SizedBox(height: 16), action!],
+      ],
+    ),
+  );
+}
+
+/// Category tint, ink and symbol used by tiles and package drawings.
+({Color tint, Color ink, IconData icon}) artFor(Product p) =>
+    switch (p.category) {
+      'Bebidas' => (tint: primarySoft, ink: primary, icon: Symbols.waterBottle),
+      'Higiene' => (tint: secondarySoft, ink: secondary, icon: Symbols.soap),
+      'Limpeza' => (
+        tint: secondarySoft,
+        ink: secondary,
+        icon: Symbols.cleaningServices,
+      ),
+      _ => (tint: successSoft, ink: successStrong, icon: Symbols.grocery),
+    };
+
 class ProductArt extends StatelessWidget {
-  const ProductArt({super.key, required this.product, this.size = 64});
+  const ProductArt({super.key, required this.product, this.size = 48});
   final Product product;
   final double size;
   @override
   Widget build(BuildContext context) {
-    Widget fallback() => CustomPaint(
-      size: Size.square(size),
-      painter: _PackagePainter(
-        color: product.category == 'Bebidas'
-            ? const Color(0xFFADC4CB)
-            : product.category == 'Higiene'
-            ? const Color(0xFFD6B1A2)
-            : const Color(0xFFB3C39B),
-        bottle: product.category == 'Bebidas',
-        letter: product.name.isEmpty ? 'D' : product.name[0].toUpperCase(),
-      ),
-    );
-    Widget image;
+    final art = artFor(product);
+    final fallback = Icon(art.icon, size: size * .5, color: art.ink);
+    Widget? image;
     if (product.photo.isNotEmpty) {
       image = Image.file(
         File(product.photo),
         fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => fallback(),
+        errorBuilder: (_, _, _) => fallback,
       );
     } else if (product.remotePhoto.startsWith('https://')) {
       image = Image.network(
         product.remotePhoto,
         fit: BoxFit.contain,
-        errorBuilder: (_, _, _) => fallback(),
+        errorBuilder: (_, _, _) => fallback,
       );
-    } else {
-      image = fallback();
     }
     return Container(
       width: size,
       height: size,
       clipBehavior: Clip.antiAlias,
+      alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: const Color(0xFFF0F1E9),
-        borderRadius: BorderRadius.circular(size * .26),
+        color: image == null ? art.tint : zinc100,
+        borderRadius: BorderRadius.circular(size * .25),
       ),
-      child: image,
+      child: image ?? fallback,
     );
   }
 }
 
-class _PackagePainter extends CustomPainter {
-  _PackagePainter({
-    required this.color,
-    required this.bottle,
-    required this.letter,
-  });
-  final Color color;
-  final bool bottle;
-  final String letter;
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width, h = size.height;
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: Offset(w * .5, h * .83),
-        width: w * .48,
-        height: h * .09,
-      ),
-      Paint()..color = ink.withValues(alpha: .07),
-    );
-    final shape = RRect.fromRectAndRadius(
-      Rect.fromLTWH(w * .29, h * .23, w * .42, h * .58),
-      Radius.circular(w * .05),
-    );
-    canvas.drawRRect(shape, Paint()..color = color);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(w * .33, h * .13, w * .34, h * .15),
-        Radius.circular(w * .025),
-      ),
-      Paint()..color = Color.lerp(color, ink, .18)!,
-    );
-    canvas.drawRect(
-      Rect.fromLTWH(w * .29, h * .43, w * .42, h * .23),
-      Paint()..color = paper,
-    );
-    final text = TextPainter(
-      text: TextSpan(
-        text: letter,
-        style: TextStyle(fontFamily: 'Georgia', color: ink, fontSize: w * .17),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    text.paint(canvas, Offset((w - text.width) / 2, h * .45));
-    canvas.drawLine(
-      Offset(w * .35, h * .72),
-      Offset(w * .63, h * .72),
-      Paint()
-        ..color = paper.withValues(alpha: .65)
-        ..strokeWidth = 2,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _PackagePainter old) =>
-      old.color != color || old.letter != letter;
-}
-
-Rect originRect(BuildContext context) {
-  final box = context.findRenderObject();
-  if (box is RenderBox && box.hasSize) {
-    return box.localToGlobal(Offset.zero) & box.size;
-  }
-  return const Rect.fromLTWH(180, 700, 48, 48);
-}
-
-Future<T?> fluidPage<T>(BuildContext context, Widget page, {Rect? origin}) {
-  final reduced = MediaQuery.disableAnimationsOf(context);
-  final start = origin ?? originRect(context);
-  return Navigator.of(context).push<T>(
-    PageRouteBuilder<T>(
-      opaque: false,
-      barrierDismissible: true,
-      barrierColor: Colors.transparent,
-      barrierLabel: 'Fechar painel',
-      transitionDuration: Duration(milliseconds: reduced ? 0 : 620),
-      reverseTransitionDuration: Duration(milliseconds: reduced ? 0 : 420),
-      pageBuilder: (_, _, _) => ScaffoldMessenger(child: page),
-      transitionsBuilder: (context, animation, secondary, child) =>
-          AnimatedBuilder(
-            animation: animation,
-            builder: (context, _) {
-              final size = MediaQuery.sizeOf(context);
-              final t = Curves.easeInOutCubicEmphasized.transform(
-                animation.value,
-              );
-              final target = Rect.fromLTWH(0, 0, size.width, size.height);
-              final rect = Rect.lerp(start, target, t)!;
-              return Stack(
-                children: [
-                  Positioned.fill(
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: t * 7, sigmaY: t * 7),
-                      child: ColoredBox(
-                        color: ink.withValues(alpha: animation.value * .16),
-                      ),
-                    ),
-                  ),
-                  Positioned.fromRect(
-                    rect: rect,
-                    child: ClipPath(
-                      clipper: FluidRevealClipper(t),
-                      child: OverflowBox(
-                        alignment: Alignment.topCenter,
-                        minWidth: size.width,
-                        maxWidth: size.width,
-                        minHeight: size.height,
-                        maxHeight: size.height,
-                        child: Opacity(
-                          opacity: (animation.value * 2).clamp(0, 1),
-                          child: child,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-    ),
-  );
-}
-
-/// An asymmetric droplet that resolves into the page's final rectangular surface.
-class FluidRevealClipper extends CustomClipper<Path> {
-  FluidRevealClipper(this.progress);
-  final double progress;
-  @override
-  Path getClip(Size size) {
-    final bend = math.sin(progress * math.pi);
-    final radius = math.min(size.width, size.height) * .5 * (1 - progress);
-    return Path()..addRRect(
-      RRect.fromRectAndCorners(
-        Offset.zero & size,
-        topLeft: Radius.circular(radius * (1 + bend * .28)),
-        topRight: Radius.circular(radius * (1 - bend * .20)),
-        bottomLeft: Radius.circular(radius * (1 - bend * .12)),
-        bottomRight: Radius.circular(radius * (1 + bend * .22)),
-      ),
-    );
-  }
-
-  @override
-  bool shouldReclip(covariant FluidRevealClipper old) =>
-      old.progress != progress;
-}
-
+/// Full-screen page that slides in from the right, with a "Voltar" action.
 class PanelScaffold extends StatelessWidget {
   const PanelScaffold({
     super.key,
@@ -406,41 +861,43 @@ class PanelScaffold extends StatelessWidget {
   final Widget? footer;
   @override
   Widget build(BuildContext context) => Scaffold(
-    backgroundColor: paper,
     body: SafeArea(
+      bottom: footer != null,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(24, 16, 18, 16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Editorial(title, size: 30),
-                      if (subtitle != null) ...[
-                        const SizedBox(height: 5),
-                        Text(
-                          subtitle!,
-                          style: const TextStyle(color: muted, fontSize: 12),
-                        ),
-                      ],
-                    ],
-                  ),
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+            child: TextButton.icon(
+              style: TextButton.styleFrom(
+                minimumSize: const Size(44, 40),
+                padding: const EdgeInsets.fromLTRB(6, 0, 12, 0),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                RoundButton(
-                  icon: CupertinoIcons.xmark,
-                  label: 'Fechar',
-                  onPressed: () => Navigator.pop(context),
-                ),
-              ],
+                overlayColor: primarySoft,
+              ),
+              onPressed: () => Navigator.maybePop(context),
+              icon: const Icon(Symbols.chevronLeft, size: 22),
+              label: const Text('Voltar'),
             ),
           ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
+            child: Headline(title),
+          ),
+          if (subtitle != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
+              child: Text(
+                subtitle!,
+                style: const TextStyle(color: muted, fontSize: 14),
+              ),
+            ),
           Expanded(child: child),
           if (footer != null)
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 12, 24, 18),
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
               child: SizedBox(width: double.infinity, child: footer),
             ),
         ],
@@ -449,67 +906,87 @@ class PanelScaffold extends StatelessWidget {
   );
 }
 
-class LiquidLevel extends StatelessWidget {
-  const LiquidLevel({super.key, required this.level, this.size = 110});
-  final double level, size;
+/// Content of a bottom sheet: header with an optional leading tile and a close button.
+class SheetScaffold extends StatelessWidget {
+  const SheetScaffold({
+    super.key,
+    required this.title,
+    required this.child,
+    this.subtitle,
+    this.leading,
+    this.footer,
+  });
+  final String title;
+  final String? subtitle;
+  final Widget? leading;
+  final Widget child;
+  final Widget? footer;
   @override
-  Widget build(BuildContext context) => Semantics(
-    label: levelNames[(level * 4).round()],
-    child: TweenAnimationBuilder<double>(
-      tween: Tween(end: level),
-      duration: Duration(
-        milliseconds: MediaQuery.disableAnimationsOf(context) ? 0 : 650,
-      ),
-      curve: Curves.easeInOutCubic,
-      builder: (_, value, _) => CustomPaint(
-        size: Size(size, size * 1.15),
-        painter: _LiquidPainter(value),
-      ),
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: Colors.white,
+    body: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 16, 0),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (leading != null) ...[leading!, const SizedBox(width: 12)],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Headline(title, size: 20),
+                    if (subtitle != null && subtitle!.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle!,
+                        style: const TextStyle(fontSize: 13, color: muted),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              const SheetCloseButton(),
+            ],
+          ),
+        ),
+        Expanded(child: child),
+        if (footer != null)
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+              child: SizedBox(width: double.infinity, child: footer),
+            ),
+          ),
+      ],
     ),
   );
 }
 
-class _LiquidPainter extends CustomPainter {
-  _LiquidPainter(this.level);
-  final double level;
+class SheetCloseButton extends StatelessWidget {
+  const SheetCloseButton({super.key});
   @override
-  void paint(Canvas canvas, Size size) {
-    final rect = Rect.fromLTWH(
-      size.width * .12,
-      5,
-      size.width * .76,
-      size.height - 10,
-    );
-    final shape = RRect.fromRectAndRadius(rect, const Radius.circular(24));
-    canvas.drawRRect(shape, Paint()..color = mint);
-    canvas.save();
-    canvas.clipRRect(shape);
-    final y = rect.bottom - rect.height * level;
-    final wave = math.sin(level * math.pi) * 9;
-    final path = Path()
-      ..moveTo(rect.left, y)
-      ..cubicTo(
-        rect.left + rect.width * .3,
-        y - wave,
-        rect.left + rect.width * .7,
-        y + wave,
-        rect.right,
-        y,
-      )
-      ..lineTo(rect.right, rect.bottom)
-      ..lineTo(rect.left, rect.bottom)
-      ..close();
-    canvas.drawPath(path, Paint()..color = green.withValues(alpha: .75));
-    canvas.restore();
-    canvas.drawLine(
-      Offset(size.width * .42, size.height * .5),
-      Offset(size.width * .58, size.height * .5),
-      Paint()
-        ..color = paper
-        ..strokeWidth = 2,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _LiquidPainter old) => old.level != level;
+  Widget build(BuildContext context) => SizedBox(
+    width: 44,
+    height: 44,
+    child: Center(
+      child: IconButton(
+        tooltip: 'Fechar',
+        onPressed: () => Navigator.maybePop(context),
+        style: IconButton.styleFrom(
+          backgroundColor: zinc100,
+          foregroundColor: zinc600,
+          fixedSize: const Size(32, 32),
+          minimumSize: const Size(32, 32),
+          padding: EdgeInsets.zero,
+          tapTargetSize: MaterialTapTargetSize.padded,
+        ),
+        icon: const Icon(Symbols.close, size: 18),
+      ),
+    ),
+  );
 }

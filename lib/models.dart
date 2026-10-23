@@ -30,6 +30,20 @@ const locations = [
   'Lavanderia',
 ];
 const levelNames = ['Acabou', 'Cerca de ¼', 'Metade', 'Cerca de ¾', 'Cheio'];
+const monthNames = [
+  'janeiro',
+  'fevereiro',
+  'março',
+  'abril',
+  'maio',
+  'junho',
+  'julho',
+  'agosto',
+  'setembro',
+  'outubro',
+  'novembro',
+  'dezembro',
+];
 
 DateTime calendarDate(DateTime date) =>
     DateTime(date.year, date.month, date.day);

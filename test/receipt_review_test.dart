@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:despensa/design.dart';
 import 'package:despensa/models.dart';
+import 'package:despensa/motion.dart';
+import 'package:despensa/toast.dart';
 import 'package:despensa/services.dart';
 import 'package:despensa/store.dart';
 import 'package:despensa/screens/capture.dart';
@@ -23,11 +25,12 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: pantryTheme(),
+        builder: (context, child) => ToastHost(child: child!),
         home: Scaffold(
           body: Builder(
             builder: (context) => Center(
               child: FilledButton(
-                onPressed: () => fluidPage(context, page),
+                onPressed: () => pushPage(context, page),
                 child: const Text('Abrir revisão'),
               ),
             ),

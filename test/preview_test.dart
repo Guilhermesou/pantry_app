@@ -11,39 +11,149 @@ import 'package:despensa/services.dart';
 import 'package:despensa/screens/capture.dart';
 import 'package:despensa/screens/settings.dart';
 import 'package:despensa/screens/lots.dart';
-import 'package:despensa/screens/quick_level.dart';
 import 'store_test.dart' show MemoryRepository;
 
-// Optional visual QA capture using system fonts, without bundling proprietary fonts.
+/// Loads the bundled Inter and Material Symbols so captures match the app.
+Future<void> loadAppFonts() async {
+  for (final (family, assets) in [
+    (
+      'Inter',
+      [
+        'assets/fonts/Inter-Regular.ttf',
+        'assets/fonts/Inter-Medium.ttf',
+        'assets/fonts/Inter-SemiBold.ttf',
+        'assets/fonts/Inter-Bold.ttf',
+      ],
+    ),
+    ('MaterialSymbolsRounded', ['assets/fonts/MaterialSymbolsRounded.ttf']),
+    ('MaterialIcons', ['fonts/MaterialIcons-Regular.otf']),
+  ]) {
+    final loader = FontLoader(family);
+    for (final asset in assets) {
+      loader.addFont(rootBundle.load(asset));
+    }
+    await loader.load();
+  }
+}
+
+/// The sample household used by the design prototype.
+AppData designData() {
+  final today = calendarDate(DateTime.now());
+  return AppData(
+    onboarded: true,
+    demo: true,
+    budget: 600,
+    products: [
+      Product(
+        id: 'rice',
+        name: 'Arroz integral',
+        brand: 'Tio João',
+        pack: '1 kg',
+        closed: 2,
+        opened: [.5],
+        minimum: 2,
+        lastPrice: 8.9,
+      ),
+      Product(
+        id: 'coffee',
+        name: 'Café moído',
+        pack: '250 g',
+        opened: [.25],
+        minimum: 1,
+        lastPrice: 18.9,
+      ),
+      Product(
+        id: 'milk',
+        name: 'Leite integral',
+        pack: '1 L',
+        category: 'Bebidas',
+        location: 'Geladeira',
+        closed: 1,
+        opened: [.25],
+        minimum: 3,
+        lastPrice: 5.49,
+      ),
+      Product(
+        id: 'yogurt',
+        name: 'Iogurte natural',
+        pack: '170 g',
+        location: 'Geladeira',
+        closed: 2,
+        lastPrice: 3.79,
+        lots: [
+          StockLot(
+            id: 'yogurt-lot',
+            closed: 2,
+            expiry: today.add(const Duration(days: 1)),
+          ),
+        ],
+      ),
+      Product(
+        id: 'soap',
+        name: 'Sabonete',
+        pack: '90 g',
+        category: 'Higiene',
+        location: 'Banheiro',
+        closed: 3,
+        minimum: 2,
+        lastPrice: 3.2,
+      ),
+    ],
+    list: [
+      ShoppingItem(id: 'a', name: 'Papel toalha', quantity: 2, price: 6.49),
+      ShoppingItem(
+        id: 'b',
+        name: 'Banana',
+        price: 7.9,
+        priority: Priority.flexible,
+      ),
+      ShoppingItem(
+        id: 'c',
+        name: 'Azeite extravirgem',
+        price: 34.9,
+        priority: Priority.later,
+      ),
+    ],
+    events: [
+      StockEvent(
+        id: 'e1',
+        title: 'Embalagem aberta',
+        detail: 'Arroz integral',
+        date: DateTime.now().subtract(const Duration(days: 1)),
+      ),
+      StockEvent(
+        id: 'e2',
+        title: 'Compra guardada',
+        detail: '2× Arroz integral · 6× Leite integral · 1× Café moído',
+        date: DateTime.now().subtract(const Duration(days: 4)),
+        total: 69.64,
+        kind: 'purchase',
+      ),
+      StockEvent(
+        id: 'e3',
+        title: 'Cupom importado',
+        detail: '1× Banana · 2× Tomate · 1× Alface',
+        date: DateTime.now().subtract(const Duration(days: 11)),
+        total: 24.89,
+        kind: 'purchase',
+      ),
+    ],
+  );
+}
+
 void main() {
   testWidgets(
     'capture the real Flutter screens for visual review',
     (tester) async {
       tester.view.physicalSize = const Size(393, 852);
       tester.view.devicePixelRatio = 1;
+      tester.view.padding = const FakeViewPadding(top: 54, bottom: 34);
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
-      await tester.runAsync(() async {
-        final icons = FontLoader('packages/cupertino_icons/CupertinoIcons')
-          ..addFont(
-            rootBundle.load(
-              'packages/cupertino_icons/assets/CupertinoIcons.ttf',
-            ),
-          );
-        await icons.load();
-        final materialIcons = FontLoader('MaterialIcons')
-          ..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
-        await materialIcons.load();
-        for (final entry in {
-          'Georgia': '/System/Library/Fonts/Supplemental/Georgia.ttf',
-          '.SF Pro Text': '/System/Library/Fonts/SFNS.ttf',
-        }.entries) {
-          final bytes = await File(entry.value).readAsBytes();
-          final loader = FontLoader(entry.key)
-            ..addFont(Future.value(ByteData.sublistView(bytes)));
-          await loader.load();
-        }
-      });
+      addTearDown(tester.view.resetPadding);
+      await tester.runAsync(loadAppFonts);
+      // The test binding draws shadows as solid shapes unless told otherwise.
+      debugDisableShadows = false;
       final boundary = GlobalKey();
       final store = PantryStore(MemoryRepository(), AppData());
       await tester.pumpWidget(
@@ -72,114 +182,108 @@ void main() {
         });
       }
 
-      await capture('01-boas-vindas');
-      final designData = AppData.example();
-      designData.list.removeWhere((item) => item.productId != null);
-      designData.products.add(
-        Product(
-          id: 'yogurt',
-          name: 'Iogurte natural',
-          pack: '170 g',
-          location: 'Geladeira',
-          closed: 2,
-          lastPrice: 3.79,
-          lots: [
-            StockLot(
-              id: 'yogurt-lot',
-              closed: 2,
-              expiry: calendarDate(DateTime.now()).add(const Duration(days: 1)),
-            ),
-          ],
-        ),
-      );
-      await store.replace(designData);
-      await tester.pumpAndSettle();
-      await capture('09-hoje');
-      await store.addSuggestion('milk');
-      await store.addSuggestion('coffee');
-      await tester.tap(find.text('Lista'));
-      await tester.pumpAndSettle();
-      await capture('02-lista');
-      await store.change(
-        (d) => d.list.firstWhere((e) => e.productId == 'milk').checked = true,
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(find.bySemanticsLabel(RegExp('Expandir carrinho')));
-      await tester.pumpAndSettle();
-      await capture('10-carrinho');
-      await tester.tap(find.text('Estoque'));
-      await tester.pumpAndSettle();
-      await capture('03-estoque');
-      await tester.tap(find.text('Arroz integral'));
-      await tester.pumpAndSettle();
-      await tester.drag(find.byType(ListView).last, const Offset(0, -310));
-      await tester.pumpAndSettle();
-      await capture('04-controle-parcial');
-      await tester.tap(find.byTooltip('Fechar'));
-      await tester.pumpAndSettle();
-      await store.change((d) => d.receiptAliases['leit int'] = 'milk');
-      final lines = [
-        ReceiptLine(name: 'LEIT INT', quantity: 2, unitPrice: 5.49),
-      ];
-      ReceiptMatcher.prepare(lines, store.data);
+      Future<void> settle() async {
+        // Let toasts expire so each capture shows a quiet screen.
+        await tester.pump(const Duration(seconds: 5));
+        await tester.pumpAndSettle();
+      }
+
       final navigator = tester.state<NavigatorState>(
         find.byType(Navigator).first,
       );
-      navigator.push(
-        MaterialPageRoute<void>(
-          builder: (_) => ReceiptReview(
-            store: store,
-            lines: lines,
-            fingerprint: 'preview-only',
-          ),
-        ),
-      );
+      Future<void> pushed(String name, Widget page) async {
+        navigator.push(MaterialPageRoute<void>(builder: (_) => page));
+        await tester.pumpAndSettle();
+        await capture(name);
+        navigator.pop();
+        await tester.pumpAndSettle();
+      }
+
+      await capture('01-boas-vindas');
+      await store.replace(designData());
+      await settle();
+      await capture('09-hoje');
+      await tester.drag(find.byType(ListView).first, const Offset(0, -400));
       await tester.pumpAndSettle();
-      await capture('05-cupom-lembrado');
-      navigator.pop();
+      await capture('07-abertos-agora');
+      await tester.tap(find.byKey(const ValueKey('nav-1')));
       await tester.pumpAndSettle();
-      navigator.push(
-        MaterialPageRoute<void>(
-          builder: (_) => ReceiptAliasesPage(store: store),
-        ),
-      );
+      await capture('02-lista');
+      await tester.tap(find.byKey(const ValueKey('cart-a')));
+      await settle();
+      await capture('10-carrinho');
+      await tester.tap(find.byKey(const ValueKey('nav-2')));
       await tester.pumpAndSettle();
-      await capture('06-descricoes-lembradas');
-      navigator.pop();
+      await capture('03-estoque');
+      await tester.tap(find.byKey(const ValueKey('stock-view-place')));
       await tester.pumpAndSettle();
-      await store.assignExpiry(
-        'milk',
-        1,
-        calendarDate(DateTime.now()).add(const Duration(days: 3)),
-      );
-      await store.assignOpenedExpiry(
-        'milk',
-        0,
-        calendarDate(DateTime.now()).add(const Duration(days: 1)),
-      );
+      await tester.tap(find.text('Geladeira'));
       await tester.pumpAndSettle();
-      await capture('07-avisos-validade');
-      navigator.push(
-        MaterialPageRoute<void>(
-          builder: (_) => LotsPage(store: store, id: 'milk'),
-        ),
-      );
+      await capture('14-estoque-por-lugar');
+      await tester.tap(find.byKey(const ValueKey('stock-view-list')));
       await tester.pumpAndSettle();
-      await capture('08-lotes-validade');
-      navigator.pop();
+      await tester.tap(find.text('Arroz integral'));
+      await tester.pumpAndSettle();
+      await capture('04-produto');
+      await tester.drag(find.byType(ListView).last, const Offset(0, -330));
+      await tester.pumpAndSettle();
+      await capture('20-produto-olhometro');
+      await tester.tap(find.byTooltip('Fechar'));
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Adicionar'));
       await tester.pumpAndSettle();
       await capture('11-atalhos');
       await tester.tap(find.byTooltip('Fechar atalhos'));
       await tester.pumpAndSettle();
-      navigator.push(
-        MaterialPageRoute<void>(
-          builder: (_) => QuickLevelPage(store: store, id: 'rice', index: 0),
-        ),
-      );
+      await tester.tap(find.byTooltip('Mais'));
+      await tester.pumpAndSettle();
+      await capture('15-menu-mais');
+      await tester.tap(find.text('Histórico'));
+      await tester.pumpAndSettle();
+      await capture('16-historico');
+      await tester.tap(find.text('Voltar'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Mais'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Notas e cupons'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Compra da lista'));
+      await tester.pumpAndSettle();
+      await capture('17-notas-e-cupons');
+      await tester.tap(find.text('Voltar'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Mais'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Ajustes e backup'));
+      await tester.pumpAndSettle();
+      await capture('18-ajustes');
+      await tester.tap(find.text('Voltar'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('nav-0')));
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(ListView).first, const Offset(0, -400));
+      await tester.pumpAndSettle();
+      await tester.longPress(find.byKey(const ValueKey('jar-rice-0')));
       await tester.pumpAndSettle();
       await capture('12-ajuste-rapido');
+      await tester.tap(find.byTooltip('Fechar'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('jar-coffee-0')));
+      await tester.pumpAndSettle();
+      await capture('19-desfazer');
+      await settle();
+      await store.change((d) => d.receiptAliases['leit int'] = 'milk');
+      final lines = [
+        ReceiptLine(name: 'LEIT INT', quantity: 2, unitPrice: 5.49),
+      ];
+      ReceiptMatcher.prepare(lines, store.data);
+      await pushed(
+        '05-cupom-lembrado',
+        ReceiptReview(store: store, lines: lines, fingerprint: 'preview-only'),
+      );
+      await pushed('06-descricoes-lembradas', ReceiptAliasesPage(store: store));
+      await pushed('08-lotes-validade', LotsPage(store: store, id: 'yogurt'));
+      debugDisableShadows = true;
     },
     skip: !const bool.fromEnvironment('CAPTURE_UI'),
   );
