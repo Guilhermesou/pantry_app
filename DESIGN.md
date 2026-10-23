@@ -32,7 +32,8 @@ Implementação nativa em Flutter do protótipo `Despensa HeroUI.dc.html`. O pro
 
 | Interação | Resposta |
 | --- | --- |
-| Pressionar uma superfície | Escala 1 → 0,97 em 110 ms; retorno em 260 ms |
+| Pressionar uma superfície | Escala 1 → 0,97 em 110 ms; retorno com mola (`springOut`, `cubic-bezier(.34,1.56,.64,1)`) em 360 ms |
+| Pressionar um botão | Afunda 4% e escala 0,96 em 90 ms; volta com mola em 380 ms. Rótulo ou ícone trocado entra de 0,7 com mola |
 | Abrir o + ou o Mais | Fundo escurece 30% com desfoque de 4; popover de 0,85 → 1 a partir do canto, 300 ms, `cubic-bezier(.2,0,0,1)`; o + gira 45° em 400 ms |
 | Abrir produto ou formulário | Folha sobe de 105% em 500 ms, sobre fundo escurecido e desfocado |
 | Abrir página do Mais | Entra pela direita em 500 ms; volta em 420 ms |
@@ -40,10 +41,29 @@ Implementação nativa em Flutter do protótipo `Despensa HeroUI.dc.html`. O pro
 | Contador da próxima compra | Pulso finito até 1,2 |
 | Marcar item | Caixa, risco e cor em 200 ms; valores em 380 ms |
 | Barra Guardar no estoque | Sobe 160 px com opacidade em 450 ms |
-| Mudar nível | Preenchimento desliza em 600 ms, `cubic-bezier(.65,0,.35,1)` |
-| Aviso | Desce 16 px com opacidade em 300 ms; some após 2,6 s, ou 4,5 s com Desfazer |
+| Mudar nível | Preenchimento desliza em 600 ms, `cubic-bezier(.65,0,.35,1)`; a embalagem amassa e balança a partir da base em 520 ms; “−¼” sobe 30 px e some em 800 ms |
+| Seletor segmentado | Indicador branco desliza com mola em 420 ms; o rótulo escolhido pulsa até 1,08 |
+| Filtros, abas e caixa do carrinho | O item escolhido pulsa uma vez (1,1 nos filtros, 1,25 no ícone da aba, 1,3 na caixa) |
+| Contador | Número rola para cima ao somar e para baixo ao subtrair, 260 ms; no limite, treme e não muda |
+| Erro | Tremida lateral de 9 px que diminui em 420 ms, no aviso e na mensagem do scanner |
+| Scanner leu um código | A moldura fecha para 0,72 e fica verde; volta com mola se não encontrar |
+| Novo cartão (aberta, lote, “Nada mais pedindo atenção”) | Entra de 14 px abaixo e 0,94 com mola em 420 ms |
+| Marco concluído (compra guardada, cupom importado, último cartão do Hoje) | Confete único: 64 peças lançadas do topo, caem com gravidade e somem em 1,7 s; não bloqueia toques |
+| Aviso | Desce com mola em 420 ms; o ícone pulsa a cada mensagem; some após 2,6 s, ou 4,5 s com Desfazer |
 
-Não há animações contínuas. Com Reduzir Movimento, as durações decorativas vão a zero. Alvos interativos têm pelo menos 44 pontos de área de toque. Com texto ampliado, cartões de atenção levam a ação para baixo e os rótulos da navegação reduzem para caber.
+### Vibrações
+
+Inspiradas em jogos: cada tipo de momento tem um toque próprio (`lib/haptics.dart`).
+
+| Momento | Vibração |
+| --- | --- |
+| Escolher, alternar, passo de contador, baixar ¼ | `selectionClick` |
+| Ação principal, marcar item, abrir o + | `lightImpact` |
+| Deu certo (salvar, pôr na lista, terminar embalagem, código encontrado) | leve e média, com 90 ms entre elas |
+| Não deu (erro, código não encontrado, contador no limite) | duas fortes, com 120 ms, junto com a tremida |
+| Marco concluído | leve, média e forte, com 85 ms, junto com o confete |
+
+Não há animações contínuas: todo efeito acontece uma vez, em resposta a um toque ou a uma mudança. Com Reduzir Movimento, as durações decorativas vão a zero, tremidas, amassados e confete não acontecem e as vibrações continuam. Alvos interativos têm pelo menos 44 pontos de área de toque. Com texto ampliado, cartões de atenção levam a ação para baixo e os rótulos da navegação reduzem para caber.
 
 ## Decisões em relação ao protótipo
 

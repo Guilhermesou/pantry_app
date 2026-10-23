@@ -28,6 +28,10 @@ const _shapes = {
         'M25 16 L35 16 Q44 20 44 30 L44 62 Q44 66 40 66 L20 66 Q16 66 16 62 L16 30 Q16 20 25 16 Z',
     extra: 'M24 6 H36 V16 H24 Z',
   ),
+  'box': (
+    body: 'M13 24 L47 24 L47 62 Q47 66 43 66 L17 66 Q13 66 13 62 Z',
+    extra: 'M11 17 L49 17 L49 24 L11 24 Z',
+  ),
   'bar': (
     body:
         'M10 30 Q10 22 18 22 L42 22 Q50 22 50 30 L50 58 Q50 66 42 66 L18 66 Q10 66 10 58 Z',
@@ -46,6 +50,11 @@ String packageShape(Product p) {
     return 'bag';
   }
   if (has(['café', 'cafe'])) return 'pouch';
+  if (p.category == 'Remédios') {
+    return has(['xarope', 'gotas', 'colírio', 'colirio', 'spray', 'solução'])
+        ? 'bottle'
+        : 'box';
+  }
   return switch (p.category) {
     'Bebidas' || 'Limpeza' => 'bottle',
     'Higiene' => 'bar',
@@ -103,17 +112,20 @@ class PackageIllustration extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Semantics(
     label: levelNames[(level * 4).round().clamp(0, 4)],
-    child: TweenAnimationBuilder<double>(
-      tween: Tween(end: level),
-      duration: motionTime(context, 600),
-      curve: levelCurve,
-      builder: (_, value, _) => CustomPaint(
-        size: Size(width, width * 70 / 60),
-        painter: _PackagePainter(
-          shape: packageShape(product),
-          art: artFor(product),
-          level: value,
-          shadow: shadow,
+    child: Squish(
+      value: level,
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(end: level),
+        duration: motionTime(context, 600),
+        curve: levelCurve,
+        builder: (_, value, _) => CustomPaint(
+          size: Size(width, width * 70 / 60),
+          painter: _PackagePainter(
+            shape: packageShape(product),
+            art: artFor(product),
+            level: value,
+            shadow: shadow,
+          ),
         ),
       ),
     ),

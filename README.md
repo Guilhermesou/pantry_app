@@ -112,3 +112,8 @@ A gravação é uma sequência de quadros renderizados pelo Flutter em teste, n�
 - **Embalagens já abertas:** no produto, “Registrar embalagem aberta” (ou “Já tenho outra aberta”) conta uma embalagem aberta sem mexer nas fechadas. A validade da aberta pode ser anotada no produto, no ajuste rápido do Hoje e em Lotes e validades.
 - **Vários lotes:** o cadastro novo aceita uma validade para cada grupo de embalagens. Em Lotes e validades, “Adicionar embalagens com validade” soma embalagens já em casa com uma data própria, sem registrar compra. Abertas com a mesma data compartilham o lote.
 - **Nível no produto:** tocar na ilustração da embalagem aberta baixa ¼, com a mesma animação e o “Desfazer” da tela Hoje.
+- **Remédios:** categoria própria, com ícone e embalagem em caixa (ou frasco para xarope, gotas, colírio e spray), e o lugar **Farmacinha**, desenhado na visão Por lugar. Ao escolher Remédios num cadastro novo que ainda está em Despensa, o lugar muda para Farmacinha. O filtro **Remédios** no estoque mostra todos os remédios, inclusive os guardados na geladeira.
+
+## Microinterações
+
+Inspiradas no Duolingo, sempre curtas e únicas: botões afundam e voltam com mola, a embalagem amassa e solta um “−¼” ao baixar o nível, contadores rolam e tremem no limite, erros tremem com vibração dupla e marcos (compra guardada, cupom importado, último cartão do Hoje) soltam confete. Cada tipo de momento tem uma vibração própria. Detalhes em [DESIGN.md](DESIGN.md). Prévia: [Microinterações](docs/preview/20-microinteracoes.gif). Captura: `flutter test --dart-define=CAPTURE_MOTION=true test/motion_preview_test.dart` e `python tool/render_motion.py --frames docs/motion-micro --output docs/preview/20-microinteracoes.gif`.

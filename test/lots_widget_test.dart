@@ -255,4 +255,63 @@ void main() {
     expect(p.lots.map((lot) => lot.closed), [2, 1]);
     expect(tester.takeException(), isNull);
   });
+  testWidgets('medicines have their own filter and place in the stock', (
+    tester,
+  ) async {
+    final store = PantryStore(
+      MemoryRepository(),
+      AppData(
+        onboarded: true,
+        products: [
+          Product(
+            id: 'm',
+            name: 'Dipirona',
+            category: 'Remédios',
+            location: 'Farmacinha',
+            closed: 1,
+          ),
+          Product(
+            id: 'i',
+            name: 'Insulina',
+            category: 'Remédios',
+            location: 'Geladeira',
+            closed: 1,
+          ),
+          Product(id: 'r', name: 'Arroz', closed: 1),
+        ],
+      ),
+    );
+    await launch(tester, PantryHome(store: store));
+    await tester.tap(find.byKey(const ValueKey('nav-2')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Remédios'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Remédios'));
+    await tester.pumpAndSettle();
+    expect(find.text('Dipirona'), findsOneWidget);
+    expect(find.text('Insulina'), findsOneWidget);
+    expect(find.text('Arroz'), findsNothing);
+    await tester.tap(find.text('Por lugar'));
+    await tester.pumpAndSettle();
+    expect(find.text('Farmacinha'), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+  testWidgets('choosing the medicine category moves a new product apart', (
+    tester,
+  ) async {
+    final store = PantryStore(MemoryRepository(), AppData());
+    await launch(tester, ProductEditor(store: store));
+    await tester.enterText(find.byType(TextFormField).first, 'Dipirona');
+    await tester.ensureVisible(find.text('Alimentos'));
+    await tester.tap(find.text('Alimentos'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Remédios').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Farmacinha'), findsOneWidget);
+    await tester.tap(find.text('Salvar produto'));
+    await tester.pumpAndSettle();
+    final p = store.data.products.single;
+    expect((p.category, p.location), ('Remédios', 'Farmacinha'));
+    expect(tester.takeException(), isNull);
+  });
 }

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'design.dart';
+import 'haptics.dart';
 import 'motion.dart';
 import 'symbols.dart';
 
@@ -28,10 +29,15 @@ class _ToastHostState extends State<ToastHost> {
   String message = '';
   VoidCallback? undo;
   bool error = false, visible = false;
+
+  /// Counts errors so each one shakes the toast again.
+  int failures = 0;
   Timer? timer;
   void show(String text, VoidCallback? onUndo, bool failed) {
     timer?.cancel();
+    if (failed) Haptics.error();
     setState(() {
+      if (failed) failures++;
       message = text;
       undo = onUndo;
       error = failed;
@@ -65,54 +71,62 @@ class _ToastHostState extends State<ToastHost> {
           ignoring: !visible || undo == null,
           child: AnimatedSlide(
             offset: visible ? Offset.zero : const Offset(0, -.3),
-            duration: motionTime(context, 300),
-            curve: emphasized,
+            duration: motionTime(context, visible ? 420 : 300),
+            curve: visible ? springOut : emphasized,
             child: AnimatedOpacity(
               opacity: visible ? 1 : 0,
               duration: motionTime(context, 300),
               curve: emphasized,
-              child: Semantics(
-                liveRegion: true,
-                child: Material(
-                  type: MaterialType.transparency,
-                  child: Container(
-                    constraints: const BoxConstraints(minHeight: 52),
-                    padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                      boxShadow: shadowLarge,
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          error ? Symbols.error : Symbols.checkCircle,
-                          size: 22,
-                          fill: 1,
-                          color: error ? danger : success,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            message,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
+              child: Shake(
+                trigger: failures,
+                child: Semantics(
+                  liveRegion: true,
+                  child: Material(
+                    type: MaterialType.transparency,
+                    child: Container(
+                      constraints: const BoxConstraints(minHeight: 52),
+                      padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: shadowLarge,
+                      ),
+                      child: Row(
+                        children: [
+                          // Pops on every new message, like a stamp.
+                          BumpOnChange(
+                            value: '$message$failures',
+                            amount: .25,
+                            child: Icon(
+                              error ? Symbols.error : Symbols.checkCircle,
+                              size: 22,
+                              fill: 1,
+                              color: error ? danger : success,
                             ),
                           ),
-                        ),
-                        if (undo != null)
-                          AppButton(
-                            label: 'Desfazer',
-                            tone: ButtonTone.soft,
-                            height: 32,
-                            onPressed: () {
-                              final action = undo!;
-                              hide();
-                              action();
-                            },
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              message,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
                           ),
-                      ],
+                          if (undo != null)
+                            AppButton(
+                              label: 'Desfazer',
+                              tone: ButtonTone.soft,
+                              height: 32,
+                              onPressed: () {
+                                final action = undo!;
+                                hide();
+                                action();
+                              },
+                            ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

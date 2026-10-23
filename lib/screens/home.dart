@@ -1,8 +1,8 @@
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../design.dart';
+import '../haptics.dart';
 import '../main.dart';
 import '../models.dart';
 import '../motion.dart';
@@ -101,7 +101,7 @@ class _PantryHomeState extends State<PantryHome>
   void selectTab(int index) {
     if (index == tab) return closeOverlays();
     FocusManager.instance.primaryFocus?.unfocus();
-    HapticFeedback.selectionClick();
+    Haptics.tap();
     setState(() {
       tab = index;
       addOpen = moreOpen = false;
@@ -129,18 +129,27 @@ class _PantryHomeState extends State<PantryHome>
       () => store.addSuggestion(p.id),
       success: '${p.name} foi para a lista.',
     );
-    if (ok) HapticFeedback.lightImpact();
+    if (ok && mounted) _answered();
   }
 
   void acknowledgeExpiry(Product p) {
-    HapticFeedback.selectionClick();
     setState(() => seen.add(expiryKey(p)));
     showToast(context, '${p.name}: usar primeiro.');
+    _answered();
+  }
+
+  /// Each answered card ticks; clearing the last one is a small celebration.
+  void _answered() {
+    if (pendingAttention(data, seen, DateTime.now()) == 0) {
+      celebrate(context);
+    } else {
+      Haptics.success();
+    }
   }
 
   /// A tap on an opened package lowers it by a quarter; the last quarter finishes it.
   Future<void> toggleItem(ShoppingItem item) async {
-    HapticFeedback.selectionClick();
+    item.checked ? Haptics.tap() : Haptics.press();
     await perform(
       context,
       () => store.change((d) {
@@ -165,7 +174,7 @@ class _PantryHomeState extends State<PantryHome>
         store.checkout,
         success: 'Compra guardada. Tudo no seu lugar.',
       );
-      if (ok) HapticFeedback.mediumImpact();
+      if (ok && mounted) celebrate(context);
     }
   }
 
@@ -350,7 +359,7 @@ class _PantryHomeState extends State<PantryHome>
                 onTap: store.busy
                     ? null
                     : () {
-                        HapticFeedback.lightImpact();
+                        Haptics.press();
                         setAdd(!addOpen);
                       },
                 splashColor: Colors.white24,
@@ -393,11 +402,16 @@ class _PantryHomeState extends State<PantryHome>
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  icon,
-                  size: 20,
-                  fill: selected ? 1 : 0,
-                  color: selected ? fg : muted,
+                BumpOnChange(
+                  value: tab,
+                  enabled: selected,
+                  amount: .25,
+                  child: Icon(
+                    icon,
+                    size: 20,
+                    fill: selected ? 1 : 0,
+                    color: selected ? fg : muted,
+                  ),
                 ),
                 const SizedBox(width: 5),
                 Text(

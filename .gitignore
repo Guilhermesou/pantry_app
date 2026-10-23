@@ -46,3 +46,4 @@ app.*.map.json
 
 # Regenerable motion-test frames (the final GIF lives in docs/preview).
 /docs/motion/
+/docs/motion-micro/

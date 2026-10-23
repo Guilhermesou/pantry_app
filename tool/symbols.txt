@@ -25,6 +25,7 @@ image
 ios_share
 kitchen
 link
+medication
 more_horiz
 package_2
 barcode

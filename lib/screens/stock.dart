@@ -45,6 +45,15 @@ const Map<String, _PlaceStyle> _placeStyles = {
     handle: false,
     padRight: 10,
   ),
+  'Farmacinha': (
+    frame: Color(0xFFF7D9E4),
+    radius: 14,
+    innerRadius: 8,
+    inside: Color(0xFFFFFAFC),
+    shelf: Color(0x1FF31260),
+    handle: true,
+    padRight: 20,
+  ),
 };
 const _PlaceStyle _defaultPlace = (
   frame: zinc200,
@@ -177,6 +186,7 @@ class _StockContentState extends State<StockContent> {
                   filter == 'Acabando' && p.low ||
                   filter == 'Abertos' && p.opened.isNotEmpty ||
                   filter == 'Validades' && p.needsExpiryAttention(now) ||
+                  filter == 'Remédios' && p.category == 'Remédios' ||
                   p.location == filter),
         )
         .toList();
@@ -200,7 +210,14 @@ class _StockContentState extends State<StockContent> {
       Padding(
         padding: const EdgeInsets.only(top: 12),
         child: FilterPills(
-          options: ['Todos', 'Acabando', 'Abertos', 'Validades', ...used],
+          options: [
+            'Todos',
+            'Acabando',
+            'Abertos',
+            'Validades',
+            if (data.products.any((p) => p.category == 'Remédios')) 'Remédios',
+            ...used,
+          ],
           selected: filter,
           onSelected: (value) => setState(() => filter = value),
         ),

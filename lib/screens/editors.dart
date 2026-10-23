@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../design.dart';
+import '../haptics.dart';
 import '../main.dart';
 import '../models.dart';
+import '../motion.dart';
 import '../services.dart';
 import '../store.dart';
 import '../symbols.dart';
@@ -50,6 +52,7 @@ class _BudgetEditorState extends State<BudgetEditor> {
               );
               if (context.mounted) {
                 if (ok) {
+                  Haptics.success();
                   Navigator.pop(context);
                 } else {
                   setState(() => saving = false);
@@ -91,6 +94,7 @@ class _BudgetEditorState extends State<BudgetEditor> {
                   );
                   if (context.mounted) {
                     if (ok) {
+                      Haptics.success();
                       Navigator.pop(context);
                     } else {
                       setState(() => saving = false);
@@ -176,6 +180,7 @@ class _ShoppingEditorState extends State<ShoppingEditor> {
               );
               if (context.mounted) {
                 if (ok) {
+                  Haptics.success();
                   Navigator.pop(context);
                 } else {
                   setState(() => saving = false);
@@ -292,6 +297,7 @@ class _ShoppingEditorState extends State<ShoppingEditor> {
                         );
                         if (context.mounted) {
                           if (ok) {
+                            Haptics.success();
                             Navigator.pop(context);
                           } else {
                             setState(() => saving = false);
@@ -309,7 +315,7 @@ class _ShoppingEditorState extends State<ShoppingEditor> {
   );
 }
 
-class Counter extends StatelessWidget {
+class Counter extends StatefulWidget {
   const Counter({
     super.key,
     required this.label,
@@ -322,34 +328,57 @@ class Counter extends StatelessWidget {
   final int value, min, max;
   final ValueChanged<int>? onChanged;
   @override
+  State<Counter> createState() => _CounterState();
+}
+
+class _CounterState extends State<Counter> {
+  /// Bumped when a step hits a limit, so the number shakes "no".
+  int refused = 0;
+  void step(int delta) {
+    final next = widget.value + delta;
+    if (next < widget.min || next > widget.max) {
+      Haptics.error();
+      setState(() => refused++);
+      return;
+    }
+    Haptics.tap();
+    widget.onChanged!(next);
+  }
+
+  Widget button(String tooltip, IconData icon, int delta, bool allowed) =>
+      IconButton(
+        tooltip: '$tooltip ${widget.label}',
+        onPressed: widget.onChanged == null ? null : () => step(delta),
+        color: allowed ? null : faint,
+        icon: Icon(icon, size: 20),
+      );
+
+  @override
   Widget build(BuildContext context) => Surface(
     color: zinc100,
     padding: const EdgeInsets.fromLTRB(14, 4, 4, 4),
     child: Row(
       children: [
-        Expanded(child: Text(label, style: const TextStyle(fontSize: 14))),
-        IconButton(
-          tooltip: 'Diminuir $label',
-          onPressed: value > min && onChanged != null
-              ? () => onChanged!(value - 1)
-              : null,
-          icon: const Icon(Symbols.remove, size: 20),
+        Expanded(
+          child: Text(widget.label, style: const TextStyle(fontSize: 14)),
         ),
+        button('Diminuir', Symbols.remove, -1, widget.value > widget.min),
         SizedBox(
           width: 28,
-          child: Text(
-            '$value',
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 17),
+          child: Shake(
+            trigger: refused,
+            child: Center(
+              child: RollingNumber(
+                value: widget.value,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 17,
+                ),
+              ),
+            ),
           ),
         ),
-        IconButton(
-          tooltip: 'Aumentar $label',
-          onPressed: value < max && onChanged != null
-              ? () => onChanged!(value + 1)
-              : null,
-          icon: const Icon(Symbols.add, size: 20),
-        ),
+        button('Aumentar', Symbols.add, 1, widget.value < widget.max),
       ],
     ),
   );
@@ -476,6 +505,7 @@ class _ProductEditorState extends State<ProductEditor> {
               );
               if (context.mounted) {
                 if (ok) {
+                  Haptics.success();
                   Navigator.pop(context);
                 } else {
                   setState(() => saving = false);
@@ -563,10 +593,17 @@ class _ProductEditorState extends State<ProductEditor> {
             items: categories
                 .map((e) => DropdownMenuItem(value: e, child: Text(e)))
                 .toList(),
-            onChanged: (v) => setState(() => p.category = v!),
+            onChanged: (v) => setState(() {
+              p.category = v!;
+              // Medicines usually live apart; only a still-default place moves.
+              if (v == 'Remédios' && !existing && p.location == 'Despensa') {
+                p.location = 'Farmacinha';
+              }
+            }),
           ),
           const SizedBox(height: 16),
           DropdownButtonFormField(
+            key: ValueKey('location-${p.location}'),
             initialValue: p.location,
             decoration: const InputDecoration(labelText: 'Onde fica?'),
             items: locations

@@ -29,6 +29,7 @@ abstract final class Symbols {
   static const iosShare = IconData(0xe6b8, fontFamily: _family);
   static const kitchen = IconData(0xeb47, fontFamily: _family);
   static const link = IconData(0xe250, fontFamily: _family);
+  static const medication = IconData(0xf033, fontFamily: _family);
   static const moreHoriz = IconData(0xe5d3, fontFamily: _family);
   static const package2 = IconData(0xf569, fontFamily: _family);
   static const barcode = IconData(0xe70b, fontFamily: _family);

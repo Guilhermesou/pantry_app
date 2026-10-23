@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../design.dart';
+import '../haptics.dart';
 import '../illustration.dart';
 import '../main.dart';
 import '../models.dart';
@@ -15,6 +15,14 @@ class FinishedOpening {
   final String? lotId;
 }
 
+/// The floating label for a level change, such as "−¼"; quiet when equal.
+String? levelChange(double from, double to) {
+  final quarters = ((to - from) * 4).round();
+  if (quarters == 0) return null;
+  const names = {1: '¼', 2: '½', 3: '¾', 4: '1'};
+  return '${quarters < 0 ? '−' : '+'}${names[quarters.abs()]}';
+}
+
 /// One tap lowers a quarter; the last quarter finishes the package with undo.
 Future<void> lowerOpenedLevel(
   BuildContext context,
@@ -24,13 +32,14 @@ Future<void> lowerOpenedLevel(
 ) async {
   final level = p.opened[index], lotId = p.openedLotIds[index];
   final next = ((level * 4).round() - 1) / 4;
-  HapticFeedback.selectionClick();
   if (next > 0) {
+    Haptics.tap();
     await perform(context, () => store.setLevel(p.id, index, next));
     return;
   }
   final ok = await perform(context, () => store.setLevel(p.id, index, 0));
   if (ok && context.mounted) {
+    Haptics.success();
     showToast(
       context,
       '${p.name}: embalagem finalizada.',
@@ -106,7 +115,10 @@ class QuickLevelPage extends StatelessWidget {
                     context,
                     () => store.setLevel(id, index, 0),
                   );
-                  if (ok && context.mounted) Navigator.pop(context, previous);
+                  if (ok && context.mounted) {
+                    Haptics.success();
+                    Navigator.pop(context, previous);
+                  }
                 },
         ),
         child: ListView(
@@ -150,7 +162,6 @@ class QuickLevelPage extends StatelessWidget {
               onSelected: store.busy
                   ? null
                   : (value) {
-                      HapticFeedback.selectionClick();
                       perform(
                         context,
                         () => store.setLevel(id, index, value / 4),

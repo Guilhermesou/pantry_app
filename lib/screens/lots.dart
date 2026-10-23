@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../design.dart';
+import '../haptics.dart';
 import '../illustration.dart';
 import '../main.dart';
 import '../models.dart';
@@ -224,64 +225,70 @@ class LotsPage extends StatelessWidget {
               ),
             for (final lot in p.activeLots)
               Padding(
+                key: ValueKey('lot-${lot.id}'),
                 padding: const EdgeInsets.only(top: 12),
-                child: Builder(
-                  builder: (_) => TouchSurface(
-                    onTap: () => showSheet(
-                      context,
-                      LotEditor(store: store, id: id, lotId: lot.id),
-                    ),
-                    child: Surface(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              const Icon(
-                                Symbols.event,
-                                color: primary,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  displayDate(lot.expiry),
-                                  style: const TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w600,
+                child: PopIn(
+                  child: Builder(
+                    builder: (_) => TouchSurface(
+                      onTap: () => showSheet(
+                        context,
+                        LotEditor(store: store, id: id, lotId: lot.id),
+                      ),
+                      child: Surface(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(
+                                  Symbols.event,
+                                  color: primary,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    displayDate(lot.expiry),
+                                    style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                 ),
+                                const Icon(
+                                  Symbols.chevronRight,
+                                  size: 20,
+                                  color: faint,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Tag(
+                              expiryLabel(lot.expiry, DateTime.now()),
+                              icon: Symbols.event,
+                              background:
+                                  daysUntil(lot.expiry, DateTime.now()) < 0
+                                  ? dangerSoft
+                                  : daysUntil(lot.expiry, DateTime.now()) <= 7
+                                  ? warningSoft
+                                  : successSoft,
+                              foreground:
+                                  daysUntil(lot.expiry, DateTime.now()) < 0
+                                  ? dangerInk
+                                  : daysUntil(lot.expiry, DateTime.now()) <= 7
+                                  ? warningInk
+                                  : successInk,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              '${lot.closed} ${lot.closed == 1 ? 'fechada' : 'fechadas'} · ${p.openedLotIds.where((ref) => ref == lot.id).length} ${p.openedLotIds.where((ref) => ref == lot.id).length == 1 ? 'aberta' : 'abertas'}',
+                              style: const TextStyle(
+                                color: muted,
+                                fontSize: 12,
                               ),
-                              const Icon(
-                                Symbols.chevronRight,
-                                size: 20,
-                                color: faint,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Tag(
-                            expiryLabel(lot.expiry, DateTime.now()),
-                            icon: Symbols.event,
-                            background:
-                                daysUntil(lot.expiry, DateTime.now()) < 0
-                                ? dangerSoft
-                                : daysUntil(lot.expiry, DateTime.now()) <= 7
-                                ? warningSoft
-                                : successSoft,
-                            foreground:
-                                daysUntil(lot.expiry, DateTime.now()) < 0
-                                ? dangerInk
-                                : daysUntil(lot.expiry, DateTime.now()) <= 7
-                                ? warningInk
-                                : successInk,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            '${lot.closed} ${lot.closed == 1 ? 'fechada' : 'fechadas'} · ${p.openedLotIds.where((ref) => ref == lot.id).length} ${p.openedLotIds.where((ref) => ref == lot.id).length == 1 ? 'aberta' : 'abertas'}',
-                            style: const TextStyle(color: muted, fontSize: 12),
-                          ),
-                        ],
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -386,6 +393,7 @@ class _LotEditorState extends State<LotEditor> {
               );
               if (context.mounted) {
                 if (ok) {
+                  Haptics.success();
                   Navigator.pop(context);
                 } else {
                   setState(() => saving = false);
@@ -449,6 +457,7 @@ class _LotEditorState extends State<LotEditor> {
               );
               if (context.mounted) {
                 if (ok) {
+                  Haptics.success();
                   Navigator.pop(context);
                 } else {
                   setState(() => saving = false);
@@ -509,6 +518,7 @@ class _LotEditorState extends State<LotEditor> {
                     );
                     if (context.mounted) {
                       if (ok) {
+                        Haptics.success();
                         Navigator.pop(context);
                       } else {
                         setState(() => saving = false);
@@ -538,6 +548,7 @@ class _LotEditorState extends State<LotEditor> {
                     );
                     if (context.mounted) {
                       if (ok) {
+                        Haptics.success();
                         Navigator.pop(context);
                       } else {
                         setState(() => saving = false);

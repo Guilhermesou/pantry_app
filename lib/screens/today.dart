@@ -5,6 +5,7 @@ import '../models.dart';
 import '../motion.dart';
 import '../store.dart';
 import '../symbols.dart';
+import 'quick_level.dart' show levelChange;
 import 'shopping.dart' show BudgetTrack;
 
 String todayLabel(DateTime date) {
@@ -48,6 +49,20 @@ String _expiryDetail(Product p) {
       : '${p.location} · ${lot.closed} ${lot.closed == 1 ? 'fechado' : 'fechados'} no lote';
 }
 
+List<Product> attentionProducts(AppData data, DateTime now) =>
+    data.products.where((p) => p.low || p.needsExpiryAttention(now)).toList();
+
+/// A low product asks for replenishment; otherwise the card is about its expiry.
+bool attentionDone(AppData data, Set<String> seen, Product p) => p.low
+    ? data.list.any((e) => e.productId == p.id)
+    : seen.contains(expiryKey(p));
+
+int pendingAttention(AppData data, Set<String> seen, DateTime now) =>
+    attentionProducts(
+      data,
+      now,
+    ).where((p) => !attentionDone(data, seen, p)).length;
+
 class TodayContent extends StatelessWidget {
   const TodayContent({
     super.key,
@@ -73,11 +88,8 @@ class TodayContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final data = store.data, now = DateTime.now();
     bool inList(Product p) => data.list.any((e) => e.productId == p.id);
-    final attention = data.products
-        .where((p) => p.low || p.needsExpiryAttention(now))
-        .toList();
-    // A low product asks for replenishment; otherwise the card is about its expiry.
-    bool done(Product p) => p.low ? inList(p) : seen.contains(expiryKey(p));
+    final attention = attentionProducts(data, now);
+    bool done(Product p) => attentionDone(data, seen, p);
     final pending = attention.where((p) => !done(p)).length;
     final opened = [
       for (final p in data.products)
@@ -136,24 +148,27 @@ class TodayContent extends StatelessWidget {
                     ),
                   ),
                 if (pending == 0)
-                  const Padding(
-                    padding: EdgeInsets.fromLTRB(0, 4, 0, 18),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Symbols.checkCircle,
-                          size: 20,
-                          fill: 1,
-                          color: success,
-                        ),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Nada mais pedindo atenção por hoje.',
-                            style: TextStyle(fontSize: 14, color: muted),
+                  const PopIn(
+                    delay: .5,
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(0, 4, 0, 18),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Symbols.checkCircle,
+                            size: 20,
+                            fill: 1,
+                            color: success,
                           ),
-                        ),
-                      ],
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Nada mais pedindo atenção por hoje.',
+                              style: TextStyle(fontSize: 14, color: muted),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
               ],
@@ -465,7 +480,11 @@ class _OpenedJar extends StatelessWidget {
         ),
         child: Column(
           children: [
-            PackageIllustration(product: product, level: level),
+            RiseOnChange(
+              value: level,
+              describe: levelChange,
+              child: PackageIllustration(product: product, level: level),
+            ),
             const SizedBox(height: 10),
             Text(
               product.name.split(' ').first,

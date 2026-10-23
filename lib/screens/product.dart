@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../design.dart';
+import '../haptics.dart';
 import '../illustration.dart';
 import '../main.dart';
 import '../models.dart';
@@ -10,7 +10,7 @@ import '../symbols.dart';
 import '../toast.dart';
 import 'editors.dart';
 import 'lots.dart';
-import 'quick_level.dart' show lowerOpenedLevel;
+import 'quick_level.dart' show levelChange, lowerOpenedLevel;
 
 class ProductDetail extends StatelessWidget {
   const ProductDetail({super.key, required this.store, required this.id});
@@ -49,12 +49,27 @@ class ProductDetail extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    '${p.closed} ${p.closed == 1 ? 'embalagem fechada' : 'embalagens fechadas'}',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  Row(
+                    children: [
+                      RollingNumber(
+                        value: p.closed,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Expanded(
+                        child: Text(
+                          p.closed == 1
+                              ? ' embalagem fechada'
+                              : ' embalagens fechadas',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 3),
                   Text(
@@ -72,10 +87,7 @@ class ProductDetail extends StatelessWidget {
                       glow: true,
                       onPressed: store.busy
                           ? null
-                          : () {
-                              HapticFeedback.lightImpact();
-                              choosePackage(context, store, id);
-                            },
+                          : () => choosePackage(context, store, id),
                     ),
                     const SizedBox(height: 8),
                   ],
@@ -89,10 +101,7 @@ class ProductDetail extends StatelessWidget {
                     expand: true,
                     onPressed: store.busy
                         ? null
-                        : () {
-                            HapticFeedback.lightImpact();
-                            perform(context, () => store.addOpened(id));
-                          },
+                        : () => perform(context, () => store.addOpened(id)),
                   ),
                 ],
               ),
@@ -105,7 +114,10 @@ class ProductDetail extends StatelessWidget {
             for (var i = 0; i < p.opened.length; i++)
               Padding(
                 padding: EdgeInsets.only(top: i == 0 ? 0 : 12),
-                child: _OpenedPackage(store: store, product: p, index: i),
+                // New packages spring in; existing ones keep their place.
+                child: PopIn(
+                  child: _OpenedPackage(store: store, product: p, index: i),
+                ),
               ),
             const SizedBox(height: 12),
             Surface(
@@ -130,15 +142,21 @@ class ProductDetail extends StatelessWidget {
                   AppButton(
                     label: inList ? 'Já está na lista' : 'Pôr na lista',
                     icon: inList ? Symbols.check : Symbols.add,
-                    tone: ButtonTone.soft,
+                    tone: inList ? ButtonTone.success : ButtonTone.soft,
                     height: 40,
-                    onPressed: inList || store.busy
+                    onPressed: inList
+                        ? () {}
+                        : store.busy
                         ? null
-                        : () => perform(
-                            context,
-                            () => store.addSuggestion(id),
-                            success: '${p.name} foi para a lista.',
-                          ),
+                        : () async {
+                            if (await perform(
+                              context,
+                              () => store.addSuggestion(id),
+                              success: '${p.name} foi para a lista.',
+                            )) {
+                              Haptics.success();
+                            }
+                          },
                   ),
                 ],
               ),
@@ -226,10 +244,14 @@ class _OpenedPackage extends StatelessWidget {
                     '${p.name}, ${levelNames[(level * 4).round()]}. Toque para baixar um quarto.',
                 child: Padding(
                   padding: const EdgeInsets.all(4),
-                  child: PackageIllustration(
-                    product: p,
-                    level: level,
-                    width: 64,
+                  child: RiseOnChange(
+                    value: level,
+                    describe: levelChange,
+                    child: PackageIllustration(
+                      product: p,
+                      level: level,
+                      width: 64,
+                    ),
                   ),
                 ),
               ),
@@ -243,11 +265,28 @@ class _OpenedPackage extends StatelessWidget {
                       style: const TextStyle(fontSize: 12, color: muted),
                     ),
                     const SizedBox(height: 2),
-                    Text(
-                      levelNames[(level * 4).round()],
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
+                    AnimatedSwitcher(
+                      duration: motionTime(context, 260),
+                      switchInCurve: springOut,
+                      transitionBuilder: (child, animation) => FadeTransition(
+                        opacity: animation,
+                        child: ScaleTransition(
+                          alignment: Alignment.centerLeft,
+                          scale: Tween(begin: .8, end: 1.0).animate(animation),
+                          child: child,
+                        ),
+                      ),
+                      layoutBuilder: (current, previous) => Stack(
+                        alignment: Alignment.centerLeft,
+                        children: [...previous, ?current],
+                      ),
+                      child: Text(
+                        levelNames[(level * 4).round()],
+                        key: ValueKey(level),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -272,10 +311,7 @@ class _OpenedPackage extends StatelessWidget {
             selected: (level * 4).round(),
             onSelected: store.busy
                 ? null
-                : (n) {
-                    HapticFeedback.selectionClick();
-                    perform(context, () => store.setLevel(p.id, i, n / 4));
-                  },
+                : (n) => perform(context, () => store.setLevel(p.id, i, n / 4)),
           ),
           const SizedBox(height: 10),
           ExpiryField(
@@ -301,6 +337,7 @@ class _OpenedPackage extends StatelessWidget {
                       () => store.setLevel(p.id, i, 0),
                     );
                     if (ok && context.mounted) {
+                      Haptics.success();
                       showToast(
                         context,
                         '${p.name}: embalagem finalizada.',

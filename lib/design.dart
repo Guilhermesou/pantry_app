@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'haptics.dart';
 import 'models.dart';
 import 'motion.dart';
 import 'symbols.dart';
@@ -471,7 +472,8 @@ class Tag extends StatelessWidget {
 enum ButtonTone { solid, soft, flat, success, danger, ghostDanger }
 
 /// HeroUI-style button: solid, flat or ghost, in three sizes.
-class AppButton extends StatelessWidget {
+/// Presses sink a little and spring back; a changed label pops in.
+class AppButton extends StatefulWidget {
   const AppButton({
     super.key,
     required this.label,
@@ -489,8 +491,19 @@ class AppButton extends StatelessWidget {
   final double height;
   final bool expand, glow;
   @override
+  State<AppButton> createState() => _AppButtonState();
+}
+
+class _AppButtonState extends State<AppButton> {
+  bool pressed = false;
+  void press(bool value) {
+    if (pressed != value) setState(() => pressed = value);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final enabled = onPressed != null;
+    final tone = widget.tone, height = widget.height;
+    final enabled = widget.onPressed != null;
     final (background, foreground) = !enabled
         ? (zinc100, faint)
         : switch (tone) {
@@ -503,60 +516,104 @@ class AppButton extends StatelessWidget {
           };
     final small = height <= 36;
     final radius = BorderRadius.circular(small ? 8 : 12);
+    final down = pressed && enabled;
     return Semantics(
       button: true,
       enabled: enabled,
-      child: AnimatedContainer(
-        duration: motionTime(context, 250),
-        constraints: BoxConstraints(minHeight: height),
-        width: expand ? double.infinity : null,
-        decoration: BoxDecoration(
-          color: background,
-          borderRadius: radius,
-          boxShadow: glow && enabled && tone == ButtonTone.solid
-              ? const [
-                  BoxShadow(
-                    color: Color(0x66006FEE),
-                    offset: Offset(0, 8),
-                    blurRadius: 11.26,
-                    spreadRadius: -4,
+      child: AnimatedSlide(
+        offset: Offset(0, down ? .04 : 0),
+        duration: motionTime(context, down ? 90 : 380),
+        curve: down ? Curves.easeOut : springOut,
+        child: AnimatedScale(
+          scale: down ? .96 : 1,
+          duration: motionTime(context, down ? 90 : 380),
+          curve: down ? Curves.easeOut : springOut,
+          child: AnimatedContainer(
+            duration: motionTime(context, 250),
+            constraints: BoxConstraints(minHeight: height),
+            width: widget.expand ? double.infinity : null,
+            decoration: BoxDecoration(
+              color: background,
+              borderRadius: radius,
+              boxShadow:
+                  widget.glow && enabled && tone == ButtonTone.solid && !down
+                  ? const [
+                      BoxShadow(
+                        color: Color(0x66006FEE),
+                        offset: Offset(0, 8),
+                        blurRadius: 11.26,
+                        spreadRadius: -4,
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Material(
+              type: MaterialType.transparency,
+              child: InkWell(
+                borderRadius: radius,
+                onTap: enabled
+                    ? () {
+                        tone == ButtonTone.solid || tone == ButtonTone.danger
+                            ? Haptics.press()
+                            : Haptics.tap();
+                        widget.onPressed!();
+                      }
+                    : null,
+                onHighlightChanged: press,
+                splashColor: tone == ButtonTone.ghostDanger
+                    ? dangerSoft
+                    : Colors.white24,
+                child: Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: small ? 12 : 14,
+                    vertical: 4,
                   ),
-                ]
-              : null,
-        ),
-        child: Material(
-          type: MaterialType.transparency,
-          child: InkWell(
-            borderRadius: radius,
-            onTap: onPressed,
-            splashColor: tone == ButtonTone.ghostDanger
-                ? dangerSoft
-                : Colors.white24,
-            child: Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: small ? 12 : 14,
-                vertical: 4,
-              ),
-              child: Row(
-                mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (icon != null) ...[
-                    Icon(icon, size: small ? 16 : 19, color: foreground),
-                    SizedBox(width: small ? 4 : 6),
-                  ],
-                  Flexible(
-                    child: Text(
-                      label,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: small ? 12 : (height < 40 ? 13 : 14),
-                        fontWeight: FontWeight.w500,
-                        color: foreground,
+                  child: AnimatedSwitcher(
+                    duration: motionTime(context, 320),
+                    switchInCurve: springOut,
+                    transitionBuilder: (child, animation) => FadeTransition(
+                      opacity: animation,
+                      child: ScaleTransition(
+                        scale: Tween(begin: .7, end: 1.0).animate(animation),
+                        child: child,
                       ),
                     ),
+                    layoutBuilder: (current, previous) => Stack(
+                      alignment: Alignment.center,
+                      children: [...previous, ?current],
+                    ),
+                    child: Row(
+                      key: ValueKey(
+                        '${widget.label}-${widget.icon?.codePoint}',
+                      ),
+                      mainAxisSize: widget.expand
+                          ? MainAxisSize.max
+                          : MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (widget.icon != null) ...[
+                          Icon(
+                            widget.icon,
+                            size: small ? 16 : 19,
+                            color: foreground,
+                          ),
+                          SizedBox(width: small ? 4 : 6),
+                        ],
+                        Flexible(
+                          child: Text(
+                            widget.label,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: small ? 12 : (height < 40 ? 13 : 14),
+                              fontWeight: FontWeight.w500,
+                              color: foreground,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ],
+                ),
               ),
             ),
           ),
@@ -591,7 +648,7 @@ class IconTile extends StatelessWidget {
   );
 }
 
-/// Grey track with a white sliding selection.
+/// Grey track with a white selection that slides over with a spring.
 class SegmentedPicker<T> extends StatelessWidget {
   const SegmentedPicker({
     super.key,
@@ -605,72 +662,103 @@ class SegmentedPicker<T> extends StatelessWidget {
   final ValueChanged<T>? onSelected;
   final String? keyPrefix;
   @override
-  Widget build(BuildContext context) => Container(
-    constraints: const BoxConstraints(minHeight: 40),
-    padding: const EdgeInsets.all(4),
-    decoration: BoxDecoration(
-      color: zinc100,
-      borderRadius: BorderRadius.circular(12),
-    ),
-    child: IntrinsicHeight(
-      child: Row(
+  Widget build(BuildContext context) {
+    final index = options.indexWhere((o) => o.$1 == selected);
+    final n = options.length;
+    return Container(
+      constraints: const BoxConstraints(minHeight: 40),
+      padding: const EdgeInsets.all(4),
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: zinc100,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Stack(
         children: [
-          for (final (i, (value, label, icon)) in options.indexed) ...[
-            if (i > 0) const SizedBox(width: 2),
-            Expanded(
-              child: Semantics(
-                button: true,
-                selected: value == selected,
-                child: GestureDetector(
-                  key: keyPrefix == null ? null : ValueKey('$keyPrefix-$value'),
-                  behavior: HitTestBehavior.opaque,
-                  onTap: onSelected == null ? null : () => onSelected!(value),
-                  child: AnimatedContainer(
-                    duration: motionTime(context, 200),
-                    constraints: const BoxConstraints(minHeight: 32),
-                    alignment: Alignment.center,
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
+          if (index >= 0)
+            Positioned.fill(
+              child: AnimatedAlign(
+                alignment: Alignment(n == 1 ? 0 : -1 + 2 * index / (n - 1), 0),
+                duration: motionTime(context, 420),
+                curve: springOut,
+                child: FractionallySizedBox(
+                  widthFactor: 1 / n,
+                  heightFactor: 1,
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 1),
                     decoration: BoxDecoration(
-                      color: value == selected
-                          ? Colors.white
-                          : Colors.white.withValues(alpha: 0),
+                      color: Colors.white,
                       borderRadius: BorderRadius.circular(8),
-                      boxShadow: value == selected ? shadowSmall : null,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (icon != null) ...[
-                          Icon(
-                            icon,
-                            size: 18,
-                            color: value == selected ? fg : muted,
-                          ),
-                          const SizedBox(width: 6),
-                        ],
-                        Flexible(
-                          child: Text(
-                            label,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                              color: value == selected ? fg : muted,
-                            ),
-                          ),
-                        ),
-                      ],
+                      boxShadow: shadowSmall,
                     ),
                   ),
                 ),
               ),
             ),
-          ],
+          IntrinsicHeight(
+            child: Row(
+              children: [
+                for (final (value, label, icon) in options)
+                  Expanded(
+                    child: Semantics(
+                      button: true,
+                      selected: value == selected,
+                      child: GestureDetector(
+                        key: keyPrefix == null
+                            ? null
+                            : ValueKey('$keyPrefix-$value'),
+                        behavior: HitTestBehavior.opaque,
+                        onTap: onSelected == null
+                            ? null
+                            : () {
+                                if (value != selected) Haptics.tap();
+                                onSelected!(value);
+                              },
+                        child: Container(
+                          constraints: const BoxConstraints(minHeight: 32),
+                          alignment: Alignment.center,
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: BumpOnChange(
+                            value: selected ?? '',
+                            enabled: value == selected,
+                            amount: .08,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (icon != null) ...[
+                                  Icon(
+                                    icon,
+                                    size: 18,
+                                    color: value == selected ? fg : muted,
+                                  ),
+                                  const SizedBox(width: 6),
+                                ],
+                                Flexible(
+                                  child: Text(
+                                    label,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                      color: value == selected ? fg : muted,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ],
       ),
-    ),
-  );
+    );
+  }
 }
 
 /// Horizontally scrolling filter pills.
@@ -699,22 +787,30 @@ class FilterPills extends StatelessWidget {
               button: true,
               selected: option == selected,
               child: GestureDetector(
-                onTap: () => onSelected(option),
-                child: AnimatedContainer(
-                  duration: motionTime(context, 200),
-                  constraints: const BoxConstraints(minHeight: 30),
-                  alignment: Alignment.center,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(
-                    color: option == selected ? primary : zinc100,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    option,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: option == selected ? Colors.white : zinc700,
+                onTap: () {
+                  if (option != selected) Haptics.tap();
+                  onSelected(option);
+                },
+                child: BumpOnChange(
+                  value: selected,
+                  enabled: option == selected,
+                  amount: .1,
+                  child: AnimatedContainer(
+                    duration: motionTime(context, 200),
+                    constraints: const BoxConstraints(minHeight: 30),
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: option == selected ? primary : zinc100,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      option,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: option == selected ? Colors.white : zinc700,
+                      ),
                     ),
                   ),
                 ),
@@ -806,6 +902,11 @@ class EmptyState extends StatelessWidget {
         tint: secondarySoft,
         ink: secondary,
         icon: Symbols.cleaningServices,
+      ),
+      'Remédios' => (
+        tint: dangerSoft,
+        ink: dangerInk,
+        icon: Symbols.medication,
       ),
       _ => (tint: successSoft, ink: successStrong, icon: Symbols.grocery),
     };

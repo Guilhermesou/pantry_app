@@ -21,13 +21,21 @@ enum Priority {
   final String label;
 }
 
-const categories = ['Alimentos', 'Bebidas', 'Higiene', 'Limpeza', 'Outros'];
+const categories = [
+  'Alimentos',
+  'Bebidas',
+  'Higiene',
+  'Limpeza',
+  'Remédios',
+  'Outros',
+];
 const locations = [
   'Despensa',
   'Geladeira',
   'Freezer',
   'Banheiro',
   'Lavanderia',
+  'Farmacinha',
 ];
 const levelNames = ['Acabou', 'Cerca de ¼', 'Metade', 'Cerca de ¾', 'Cheio'];
 const monthNames = [

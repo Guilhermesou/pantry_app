@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../design.dart';
+import '../haptics.dart';
 import '../main.dart';
 import '../models.dart';
 import '../services.dart';
@@ -40,6 +41,9 @@ class _BarcodePageState extends State<BarcodePage> with WidgetsBindingObserver {
 
   /// The last code that found nothing; the camera keeps seeing it while it is in frame.
   String? rejected;
+
+  /// Bumped on every failed lookup so the message shakes again.
+  int failures = 0;
   @override
   void initState() {
     super.initState();
@@ -70,9 +74,14 @@ class _BarcodePageState extends State<BarcodePage> with WidgetsBindingObserver {
     if (busy) return;
     final raw = value.trim();
     if (!RegExp(r'^\d{8,14}$').hasMatch(raw)) {
-      setState(() => message = 'Use um código de 8 a 14 números.');
+      Haptics.error();
+      setState(() {
+        failures++;
+        message = 'Use um código de 8 a 14 números.';
+      });
       return;
     }
+    Haptics.press();
     setState(() {
       busy = true;
       code.text = raw;
@@ -82,6 +91,7 @@ class _BarcodePageState extends State<BarcodePage> with WidgetsBindingObserver {
     final local = widget.store.data.byBarcode(raw);
     if (local != null) {
       if (mounted) {
+        Haptics.success();
         await showSheet(
           context,
           ProductDetail(store: widget.store, id: local.id),
@@ -94,7 +104,9 @@ class _BarcodePageState extends State<BarcodePage> with WidgetsBindingObserver {
       final product = await catalog.lookup(raw);
       if (!mounted) return;
       if (product == null) {
+        Haptics.error();
         setState(() {
+          failures++;
           message =
               'Não encontramos esse código nos catálogos. Cadastre uma vez e o app lembrará dele.';
           rejected = raw;
@@ -102,6 +114,7 @@ class _BarcodePageState extends State<BarcodePage> with WidgetsBindingObserver {
         });
         await resume();
       } else {
+        Haptics.success();
         await showSheet(
           context,
           ProductEditor(
@@ -114,7 +127,9 @@ class _BarcodePageState extends State<BarcodePage> with WidgetsBindingObserver {
       }
     } catch (_) {
       if (mounted) {
+        Haptics.error();
         setState(() {
+          failures++;
           busy = false;
           rejected = raw;
           message =
@@ -204,22 +219,28 @@ class _BarcodePageState extends State<BarcodePage> with WidgetsBindingObserver {
                       label: const Text('Ativar câmera'),
                     ),
                   ),
-                if (active && !busy)
-                  const IgnorePointer(
-                    child: Center(
-                      child: Icon(
-                        Symbols.centerFocusWeak,
-                        size: 150,
-                        weight: 200,
-                        color: Colors.white70,
-                      ),
-                    ),
-                  ),
                 if (busy)
                   const ColoredBox(
                     color: Color(0x99000000),
                     child: Center(
                       child: CircularProgressIndicator(color: Colors.white),
+                    ),
+                  ),
+                // The frame snaps onto a code it read, then springs open again.
+                if (active)
+                  IgnorePointer(
+                    child: Center(
+                      child: AnimatedScale(
+                        scale: busy ? .72 : 1,
+                        duration: motionTime(context, busy ? 160 : 460),
+                        curve: busy ? Curves.easeOut : springOut,
+                        child: Icon(
+                          Symbols.centerFocusWeak,
+                          size: 150,
+                          weight: busy ? 400 : 200,
+                          color: busy ? success : Colors.white70,
+                        ),
+                      ),
                     ),
                   ),
               ],
@@ -245,9 +266,15 @@ class _BarcodePageState extends State<BarcodePage> with WidgetsBindingObserver {
         if (message != null)
           Padding(
             padding: const EdgeInsets.only(top: 20),
-            child: Text(
-              message!,
-              style: const TextStyle(color: dangerInk, fontSize: 13),
+            child: Shake(
+              trigger: failures,
+              child: PopIn(
+                key: ValueKey(message),
+                child: Text(
+                  message!,
+                  style: const TextStyle(color: dangerInk, fontSize: 13),
+                ),
+              ),
             ),
           ),
         const SizedBox(height: 14),
@@ -489,6 +516,7 @@ class _ReceiptReviewState extends State<ReceiptReview> {
                 );
                 if (context.mounted) {
                   if (ok) {
+                    celebrate(context);
                     Navigator.pop(context, true);
                   } else {
                     setState(() => saving = false);

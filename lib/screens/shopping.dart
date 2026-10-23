@@ -341,27 +341,32 @@ class _ShoppingRow extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(14, 0, 16, 0),
           child: Row(
             children: [
-              AnimatedContainer(
-                key: ValueKey('cart-${item.id}'),
-                duration: motionTime(context, 200),
-                width: 20,
-                height: 20,
-                decoration: BoxDecoration(
-                  color: checked ? primary : Colors.transparent,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                    color: checked ? primary : zinc300,
-                    width: 2,
-                  ),
-                ),
-                child: AnimatedOpacity(
-                  opacity: checked ? 1 : 0,
+              BumpOnChange(
+                value: checked,
+                enabled: checked,
+                amount: .3,
+                child: AnimatedContainer(
+                  key: ValueKey('cart-${item.id}'),
                   duration: motionTime(context, 200),
-                  child: const Icon(
-                    Symbols.check,
-                    size: 15,
-                    weight: 600,
-                    color: Colors.white,
+                  width: 20,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    color: checked ? primary : Colors.transparent,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: checked ? primary : zinc300,
+                      width: 2,
+                    ),
+                  ),
+                  child: AnimatedOpacity(
+                    opacity: checked ? 1 : 0,
+                    duration: motionTime(context, 200),
+                    child: const Icon(
+                      Symbols.check,
+                      size: 15,
+                      weight: 600,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ),
